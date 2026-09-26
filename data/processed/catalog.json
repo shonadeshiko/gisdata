@@ -1,0 +1,25 @@
+{
+  "rasters": [
+    {
+      "id": "elevation",
+      "name": "標高（サンプル）",
+      "unit": "m",
+      "description": "ダミーの標高データ。実データ整備後はDEMに差し替える。",
+      "path": "rasters/elevation.tif"
+    },
+    {
+      "id": "landuse_index",
+      "name": "土地利用指数（サンプル）",
+      "unit": "index(0-1)",
+      "description": "ダミーの土地利用指数。値が高いほど市街地を想定。",
+      "path": "rasters/landuse_index.tif"
+    },
+    {
+      "id": "rainfall",
+      "name": "降水量（サンプル）",
+      "unit": "mm",
+      "description": "ダミーの降水量データ。実データ整備後は気象データに差し替える。",
+      "path": "rasters/rainfall.tif"
+    }
+  ]
+}

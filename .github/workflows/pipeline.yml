@@ -41,6 +41,11 @@ jobs:
       # - name: Upload to R2
       #   run: aws s3 cp data/processed s3://<bucket> --recursive --endpoint-url ...
 
+      - name: Copy processed data into web (for GitHub Pages配信)
+        run: |
+          mkdir -p web/data
+          cp -r data/processed/* web/data/
+
       - name: Upload web artifact
         uses: actions/upload-pages-artifact@v3
         with:

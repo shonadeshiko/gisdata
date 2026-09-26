@@ -7,22 +7,33 @@
 <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4/dist/maplibre-gl.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4/dist/maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
 <style>
   html, body { margin: 0; height: 100%; font-family: sans-serif; }
   #map { position: absolute; top: 0; bottom: 0; width: 100%; }
   #panel {
     position: absolute; top: 12px; left: 12px; z-index: 1;
     background: white; padding: 10px 14px; border-radius: 8px;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.3); font-size: 14px; max-width: 280px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3); font-size: 13px; max-width: 320px;
+    max-height: 90vh; overflow-y: auto;
   }
+  #panel label { display: block; margin-top: 6px; }
+  #raster-results table { border-collapse: collapse; width: 100%; margin-top: 6px; }
+  #raster-results th, #raster-results td { border: 1px solid #ddd; padding: 3px 6px; text-align: right; }
+  #raster-results th:first-child, #raster-results td:first-child { text-align: left; }
 </style>
 </head>
 <body>
 <div id="panel">
   <strong>印旛沼流域 GIS解析マップ（雛形）</strong>
-  <p>地図上をクリックすると、サンプル地点からの距離減衰ポテンシャルを
-  ブラウザ内（turf.js）で計算します。</p>
+  <p>地図上をクリックすると、その地点のポテンシャル値と、
+  指定半径バッファ内の各ラスタの統計値を計算します。</p>
+  <label>
+    バッファ半径 (m):
+    <input type="number" id="radius" value="300" min="50" max="3000" step="50" />
+  </label>
   <div id="result">クリックして計算</div>
+  <div id="raster-results"></div>
 </div>
 <div id="map"></div>
 
@@ -34,22 +45,110 @@ const facilities = turf.featureCollection([
   turf.point([140.300, 35.745], { name: "拠点C", weight: 8 }),
 ]);
 
-// 距離減衰ポテンシャル: sum( weight / distance^2 )
 function calcPotential(lng, lat) {
   const point = turf.point([lng, lat]);
   let potential = 0;
   facilities.features.forEach((f) => {
     const d = turf.distance(point, f, { units: "kilometers" });
-    const distance = Math.max(d, 0.05); // ゼロ割回避
+    const distance = Math.max(d, 0.05);
     potential += f.properties.weight / (distance * distance);
   });
   return potential;
 }
 
+let rasterCatalog = [];
+fetch("data/catalog.json")
+  .then((res) => res.json())
+  .then((json) => { rasterCatalog = json.rasters || []; })
+  .catch(() => {
+    console.warn("ラスタカタログ(data/catalog.json)が見つかりません。パイプライン出力をweb/data/にコピーしてください。");
+  });
+
+// 指定バッファ内の1ラスタの統計値(平均・最小・最大・サンプル数)を計算する
+async function computeRasterBufferStats(rasterMeta, bufferPolygon, bufferBbox) {
+  const tiff = await GeoTIFF.fromUrl(rasterMeta.path);
+  const image = await tiff.getImage();
+
+  const imgBbox = image.getBoundingBox(); // [minX, minY, maxX, maxY]
+  const width = image.getWidth();
+  const height = image.getHeight();
+  const pixelWidth = (imgBbox[2] - imgBbox[0]) / width;
+  const pixelHeight = (imgBbox[3] - imgBbox[1]) / height;
+  const nodata = image.getGDALNoData();
+
+  let x0 = Math.floor((bufferBbox[0] - imgBbox[0]) / pixelWidth);
+  let x1 = Math.ceil((bufferBbox[2] - imgBbox[0]) / pixelWidth);
+  let y0 = Math.floor((imgBbox[3] - bufferBbox[3]) / pixelHeight);
+  let y1 = Math.ceil((imgBbox[3] - bufferBbox[1]) / pixelHeight);
+
+  x0 = Math.max(0, x0);
+  y0 = Math.max(0, y0);
+  x1 = Math.min(width, x1);
+  y1 = Math.min(height, y1);
+
+  if (x1 <= x0 || y1 <= y0) {
+    return { ...rasterMeta, outOfExtent: true };
+  }
+
+  const data = await image.readRasters({ window: [x0, y0, x1, y1] });
+  const band = data[0];
+  const winWidth = x1 - x0;
+
+  let sum = 0, count = 0, min = Infinity, max = -Infinity;
+  for (let row = 0; row < y1 - y0; row++) {
+    for (let col = 0; col < winWidth; col++) {
+      const value = band[row * winWidth + col];
+      if (nodata !== null && value === nodata) continue;
+
+      const lonC = imgBbox[0] + (x0 + col + 0.5) * pixelWidth;
+      const latC = imgBbox[3] - (y0 + row + 0.5) * pixelHeight;
+      if (!turf.booleanPointInPolygon([lonC, latC], bufferPolygon)) continue;
+
+      sum += value;
+      count += 1;
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+  }
+
+  if (count === 0) return { ...rasterMeta, count: 0 };
+  return { ...rasterMeta, count, mean: sum / count, min, max };
+}
+
+async function calcBufferStatsForAllRasters(lng, lat, radiusMeters) {
+  const point = turf.point([lng, lat]);
+  const bufferPolygon = turf.buffer(point, radiusMeters / 1000, { units: "kilometers" });
+  const bufferBbox = turf.bbox(bufferPolygon);
+
+  const resultsEl = document.getElementById("raster-results");
+  if (rasterCatalog.length === 0) {
+    resultsEl.textContent = "ラスタカタログが未取得です。";
+    return;
+  }
+  resultsEl.textContent = "計算中...";
+
+  const results = await Promise.all(
+    rasterCatalog.map((r) => computeRasterBufferStats(r, bufferPolygon, bufferBbox).catch((err) => ({ ...r, error: err.message })))
+  );
+
+  let html = "<table><tr><th>ラスタ</th><th>平均</th><th>最小</th><th>最大</th><th>n</th></tr>";
+  results.forEach((r) => {
+    if (r.error) {
+      html += `<tr><td>${r.name}</td><td colspan="4">エラー: ${r.error}</td></tr>`;
+    } else if (r.outOfExtent || r.count === 0) {
+      html += `<tr><td>${r.name}</td><td colspan="4">範囲外/データなし</td></tr>`;
+    } else {
+      html += `<tr><td>${r.name}</td><td>${r.mean.toFixed(2)}</td><td>${r.min.toFixed(2)}</td><td>${r.max.toFixed(2)}</td><td>${r.count}</td></tr>`;
+    }
+  });
+  html += "</table>";
+  resultsEl.innerHTML = html;
+}
+
 const map = new maplibregl.Map({
   container: "map",
-  style: "https://demotiles.maplibre.org/style.json", // 後で任意のベースマップに変更
-  center: [140.33, 35.76], // 印旛沼周辺
+  style: "https://demotiles.maplibre.org/style.json",
+  center: [140.33, 35.76],
   zoom: 11,
 });
 
@@ -65,6 +164,8 @@ map.on("load", () => {
 
 map.on("click", (e) => {
   const { lng, lat } = e.lngLat;
+  const radiusMeters = Number(document.getElementById("radius").value) || 300;
+
   const potential = calcPotential(lng, lat);
   document.getElementById("result").textContent =
     `地点(${lng.toFixed(4)}, ${lat.toFixed(4)}) のポテンシャル値: ${potential.toFixed(3)}`;
@@ -73,6 +174,8 @@ map.on("click", (e) => {
     .setLngLat([lng, lat])
     .setHTML(`ポテンシャル値: ${potential.toFixed(3)}`)
     .addTo(map);
+
+  calcBufferStatsForAllRasters(lng, lat, radiusMeters);
 });
 </script>
 </body>

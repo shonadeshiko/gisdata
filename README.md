@@ -52,14 +52,29 @@ pip install -r requirements.txt
 python process/sample_pipeline.py
 ```
 
+これで `data/processed/rasters/*.tif`（COG）と `data/processed/catalog.json`
+（ラスタ一覧）が生成される。ラスタを追加したいときは
+`pipeline/process/sample_pipeline.py` の `RASTER_DEFS` に定義を1つ足すだけでよい。
+
 ## フロントエンドの確認
 
-`web/index.html` をブラウザで開く、または以下でローカルサーバーを起動：
+フロントエンドは `data/catalog.json` と `data/rasters/*.tif` を読みにいくため、
+ローカルで動かす場合は生成物を `web/data/` にコピーしてから起動する。
 
 ```bash
+mkdir -p web/data
+cp -r data/processed/* web/data/
 cd web
 python -m http.server 8000
 ```
+
+（GitHub Actionsでは、この処理が自動的に行われる）
+
+## バッファ解析について
+
+地図をクリックすると、その地点を中心とした指定半径のバッファ内で、
+カタログに登録されている全ラスタの平均・最小・最大値をブラウザ内
+（geotiff.js + turf.js）でオンデマンド計算する。サーバー計算は不要。
 
 ## 今後のTODO
 
