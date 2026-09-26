@@ -95,6 +95,19 @@ const BASE_LAYERS = [
 カタログに登録されている全ラスタの平均・最小・最大値をブラウザ内
 （geotiff.js + turf.js）でオンデマンド計算する。サーバー計算は不要。
 
+## 標高データ（国土地理院 標高タイル）について
+
+`pipeline/process/ingest_gsi_elevation.py` は、国土地理院の標高タイル
+(DEM10B, 10mメッシュ)を印旛沼流域周辺の範囲だけダウンロードし、
+モザイク結合・EPSG:4326への再投影・COG化を行う。
+
+外部ネットワークへの多数アクセスが必要で時間もかかるため、通常の
+pushでは実行せず、GitHub Actionsの `Ingest GSI Elevation Data`
+ワークフロー（手動実行 = workflow_dispatch）でのみ実行する。
+実行結果（COGファイルとカタログ更新）はリポジトリにコミットされ、
+以後は固定データとして配信される。対象範囲を変えたい場合は
+スクリプト内の `BBOX` を変更して再実行する。
+
 ## 千葉県 実データについて
 
 `pipeline/process/ingest_chiba_data.py` は、千葉県の実データ（水田占有率・

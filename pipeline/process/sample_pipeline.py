@@ -26,14 +26,8 @@ PIXEL_SIZE = 0.0015  # 度単位（約150m相当）
 GRID_SIZE = 400  # 400 x 400 セル -> 約60km四方をカバー
 
 # ラスタ定義: id, 説明, 単位, 生成関数
+# 標高は ingest_gsi_elevation.py で実データ(国土地理院 標高タイル)に置き換え済み
 RASTER_DEFS = [
-    {
-        "id": "elevation",
-        "name": "標高（サンプル）",
-        "unit": "m",
-        "description": "ダミーの標高データ。実データ整備後はDEMに差し替える。",
-        "generator": lambda size: _gradient(size, 0, 40),
-    },
     {
         "id": "landuse_index",
         "name": "土地利用指数（サンプル）",
@@ -49,10 +43,6 @@ RASTER_DEFS = [
         "generator": lambda size: _radial_pattern(size, 50, 200),
     },
 ]
-
-
-def _gradient(size: int, low: float, high: float) -> np.ndarray:
-    return np.linspace(low, high, size * size, dtype="float32").reshape(size, size)
 
 
 def _blocky_pattern(size: int) -> np.ndarray:
