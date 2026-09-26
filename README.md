@@ -70,6 +70,25 @@ python -m http.server 8000
 
 （GitHub Actionsでは、この処理が自動的に行われる）
 
+## ベースマップについて
+
+デフォルトは国土地理院の淡色地図（`gsi_pale`）。`web/index.html` 内の
+`BASE_LAYERS` 配列にエントリを1つ追加すると、画面上部のセレクタに
+選択肢が増える仕組みになっている。
+
+旧版地形図など、タイルのURLがまだ決まっていないレイヤーは
+`tiles: null` にしておけば「URL未設定」として選択肢には表示されるが
+選択はできない状態になる。URLが決まったら該当エントリの `tiles` に
+XYZタイルのURLテンプレート（例: `"https://.../{z}/{x}/{y}.png"`）を
+設定するだけで有効化される。
+
+```js
+const BASE_LAYERS = [
+  { id: "gsi_pale", name: "地理院地図(淡色)", tiles: ["https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png"], ... },
+  { id: "old_topo", name: "旧版地形図（要設定）", tiles: null, ... }, // ← ここにURLを設定
+];
+```
+
 ## バッファ解析について
 
 地図をクリックすると、その地点を中心とした指定半径のバッファ内で、

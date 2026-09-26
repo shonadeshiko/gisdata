@@ -36,6 +36,10 @@
     <input type="number" id="radius" value="300" min="50" max="3000" step="50" />
   </label>
   <label>
+    ベースマップ:
+    <select id="base-layer-select"></select>
+  </label>
+  <label>
     <input type="checkbox" id="toggle-mesh" checked />
     500mメッシュ GI保全スコア（千葉県）
   </label>
@@ -77,7 +81,7 @@ fetch("data/catalog.json")
 
 // 指定バッファ内の1ラスタの統計値(平均・最小・最大・サンプル数)を計算する
 async function computeRasterBufferStats(rasterMeta, bufferPolygon, bufferBbox) {
-  const tiff = await GeoTIFF.fromUrl(rasterMeta.path);
+  const tiff = await GeoTIFF.fromUrl(`data/${rasterMeta.path}`);
   const image = await tiff.getImage();
 
   const imgBbox = image.getBoundingBox(); // [minX, minY, maxX, maxY]
@@ -156,14 +160,86 @@ async function calcBufferStatsForAllRasters(lng, lat, radiusMeters) {
   resultsEl.innerHTML = html;
 }
 
+// ベースマップの定義。新しいタイル(旧版地形図など)を追加したいときは、
+// この配列に1エントリ追加するだけでセレクタに反映される。
+// tiles を null にしておくと「未設定」として選択肢には出るが無効化される。
+const BASE_LAYERS = [
+  {
+    id: "gsi_pale",
+    name: "地理院地図(淡色)",
+    tiles: ["https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png"],
+    tileSize: 256,
+    attribution: "地図: 国土地理院",
+    maxzoom: 18,
+  },
+  {
+    id: "gsi_std",
+    name: "地理院地図(標準)",
+    tiles: ["https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png"],
+    tileSize: 256,
+    attribution: "地図: 国土地理院",
+    maxzoom: 18,
+  },
+  {
+    id: "old_topo",
+    name: "旧版地形図",
+    // ここにタイルのURLテンプレートを設定すると選択できるようになる。
+    // 例: tiles: ["https://example.com/old-topo/{z}/{x}/{y}.png"],
+    tiles: null,
+    tileSize: 256,
+    attribution: "",
+  },
+];
+
+function baseLayerStyleSpec(layer) {
+  return {
+    version: 8,
+    sources: {
+      [layer.id]: {
+        type: "raster",
+        tiles: layer.tiles,
+        tileSize: layer.tileSize || 256,
+        attribution: layer.attribution || "",
+      },
+    },
+    layers: [{ id: layer.id, type: "raster", source: layer.id }],
+  };
+}
+
+const defaultBaseLayer = BASE_LAYERS.find((l) => l.tiles) || BASE_LAYERS[0];
+
 const map = new maplibregl.Map({
   container: "map",
-  style: "https://demotiles.maplibre.org/style.json",
+  style: baseLayerStyleSpec(defaultBaseLayer),
   center: [140.33, 35.76],
   zoom: 11,
 });
 
-map.on("load", async () => {
+// ベースマップ切り替えセレクタの初期化
+const baseLayerSelect = document.getElementById("base-layer-select");
+BASE_LAYERS.forEach((layer) => {
+  const option = document.createElement("option");
+  option.value = layer.id;
+  option.textContent = layer.name + (layer.tiles ? "" : "（URL未設定）");
+  option.disabled = !layer.tiles;
+  if (layer.id === defaultBaseLayer.id) option.selected = true;
+  baseLayerSelect.appendChild(option);
+});
+baseLayerSelect.addEventListener("change", (e) => {
+  const layer = BASE_LAYERS.find((l) => l.id === e.target.value);
+  if (!layer || !layer.tiles) return;
+  map.setStyle(baseLayerStyleSpec(layer));
+  // ベースマップの切り替えでstyleごと入れ替わるため、他レイヤーを再構築する
+  map.once("style.load", () => addDataLayers());
+});
+
+map.on("error", (e) => {
+  console.error("MapLibre error:", e && e.error ? e.error : e);
+});
+
+let dataLayerListenersAttached = false;
+
+async function addDataLayers() {
   map.addSource("facilities", { type: "geojson", data: facilities });
   map.addLayer({
     id: "facilities-point",
@@ -178,7 +254,7 @@ map.on("load", async () => {
 
     const mesh = vectors.find((v) => v.id === "chiba_mesh500m_gi");
     if (mesh) {
-      map.addSource("chiba-mesh", { type: "geojson", data: mesh.path });
+      map.addSource("chiba-mesh", { type: "geojson", data: `data/${mesh.path}` });
       map.addLayer({
         id: "chiba-mesh-fill",
         type: "fill",
@@ -200,30 +276,32 @@ map.on("load", async () => {
         paint: { "line-color": "#999", "line-width": 0.3 },
       });
 
-      map.on("click", "chiba-mesh-fill", (e) => {
-        const p = e.features[0].properties;
-        new maplibregl.Popup()
-          .setLngLat(e.lngLat)
-          .setHTML(
-            `<strong>メッシュ ${p.mesh4_code}</strong><br>
-             GI保全スコア: ${Number(p.gi_conservation_score).toFixed(2)}<br>
-             GI開発圧スコア: ${Number(p.gi_pressure_score).toFixed(2)}<br>
-             優先度ランク: ${p.priority_rank}<br>
-             市街地率: ${Number(p.urban_frac).toFixed(2)} / 森林率: ${Number(p.forest_frac).toFixed(2)}`
-          )
-          .addTo(map);
-      });
+      if (!dataLayerListenersAttached) {
+        map.on("click", "chiba-mesh-fill", (e) => {
+          const p = e.features[0].properties;
+          new maplibregl.Popup()
+            .setLngLat(e.lngLat)
+            .setHTML(
+              `<strong>メッシュ ${p.mesh4_code}</strong><br>
+               GI保全スコア: ${Number(p.gi_conservation_score).toFixed(2)}<br>
+               GI開発圧スコア: ${Number(p.gi_pressure_score).toFixed(2)}<br>
+               優先度ランク: ${p.priority_rank}<br>
+               市街地率: ${Number(p.urban_frac).toFixed(2)} / 森林率: ${Number(p.forest_frac).toFixed(2)}`
+            )
+            .addTo(map);
+        });
 
-      document.getElementById("toggle-mesh").addEventListener("change", (e) => {
-        const visibility = e.target.checked ? "visible" : "none";
-        map.setLayoutProperty("chiba-mesh-fill", "visibility", visibility);
-        map.setLayoutProperty("chiba-mesh-outline", "visibility", visibility);
-      });
+        document.getElementById("toggle-mesh").addEventListener("change", (e) => {
+          const visibility = e.target.checked ? "visible" : "none";
+          map.setLayoutProperty("chiba-mesh-fill", "visibility", visibility);
+          map.setLayoutProperty("chiba-mesh-outline", "visibility", visibility);
+        });
+      }
     }
 
     const boundary = vectors.find((v) => v.id === "chiba_ecodrr_boundary");
     if (boundary) {
-      map.addSource("chiba-ecodrr", { type: "geojson", data: boundary.path });
+      map.addSource("chiba-ecodrr", { type: "geojson", data: `data/${boundary.path}` });
       map.addLayer({
         id: "chiba-ecodrr-line",
         type: "line",
@@ -234,7 +312,11 @@ map.on("load", async () => {
   } catch (err) {
     console.warn("ベクタカタログ(data/vectors_catalog.json)の読み込みに失敗しました。", err);
   }
-});
+
+  dataLayerListenersAttached = true;
+}
+
+map.on("load", () => addDataLayers());
 
 map.on("click", (e) => {
   const { lng, lat } = e.lngLat;
