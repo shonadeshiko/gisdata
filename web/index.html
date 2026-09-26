@@ -28,7 +28,6 @@
   #legend { margin-top: 8px; font-size: 12px; }
   #legend .bar { height: 10px; background: linear-gradient(to right, #fff5eb, #7f2704); border-radius: 2px; }
   #legend .labels { display: flex; justify-content: space-between; margin-top: 2px; }
-  #result { font-weight: bold; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -62,34 +61,10 @@
     <div id="raster-results"></div>
   </section>
 
-  <section>
-    <h2>③ サンプル拠点からの距離ポテンシャル（デモ機能）</h2>
-    <p class="note">地図上の赤い点3箇所（架空の拠点A/B/C）からの
-    距離減衰で試算した参考値です。実データとは連動していません。</p>
-    <div id="result">クリックして計算</div>
-  </section>
 </div>
 <div id="map"></div>
 
 <script>
-// サンプル拠点（後で実データに差し替え）: 印旛沼周辺の3地点
-const facilities = turf.featureCollection([
-  turf.point([140.325, 35.765], { name: "拠点A", weight: 10 }),
-  turf.point([140.360, 35.780], { name: "拠点B", weight: 5 }),
-  turf.point([140.300, 35.745], { name: "拠点C", weight: 8 }),
-]);
-
-function calcPotential(lng, lat) {
-  const point = turf.point([lng, lat]);
-  let potential = 0;
-  facilities.features.forEach((f) => {
-    const d = turf.distance(point, f, { units: "kilometers" });
-    const distance = Math.max(d, 0.05);
-    potential += f.properties.weight / (distance * distance);
-  });
-  return potential;
-}
-
 let rasterCatalog = [];
 fetch("data/catalog.json")
   .then((res) => res.json())
@@ -268,14 +243,6 @@ map.on("error", (e) => {
 let dataLayerListenersAttached = false;
 
 async function addDataLayers() {
-  map.addSource("facilities", { type: "geojson", data: facilities });
-  map.addLayer({
-    id: "facilities-point",
-    type: "circle",
-    source: "facilities",
-    paint: { "circle-radius": 6, "circle-color": "#d64545" },
-  });
-
   try {
     const vectorsCatalog = await fetch("data/vectors_catalog.json").then((r) => r.json());
     const vectors = vectorsCatalog.vectors || [];
@@ -349,16 +316,6 @@ map.on("load", () => addDataLayers());
 map.on("click", (e) => {
   const { lng, lat } = e.lngLat;
   const radiusMeters = Number(document.getElementById("radius").value) || 300;
-
-  const potential = calcPotential(lng, lat);
-  document.getElementById("result").textContent =
-    `地点(${lng.toFixed(4)}, ${lat.toFixed(4)}) の試算値: ${potential.toFixed(3)}`;
-
-  new maplibregl.Popup()
-    .setLngLat([lng, lat])
-    .setHTML(`拠点A/B/Cからの距離ポテンシャル(デモ): ${potential.toFixed(3)}`)
-    .addTo(map);
-
   calcBufferStatsForAllRasters(lng, lat, radiusMeters);
 });
 </script>
