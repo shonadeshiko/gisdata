@@ -16,6 +16,7 @@ GitHub Actions(CI)上での実行を想定している。
 
 import json
 import math
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -56,9 +57,13 @@ def tile_bounds_3857(x: int, y: int, zoom: int) -> tuple[float, float, float, fl
     return x_min, y_min, x_max, y_max
 
 
-def fetch_tile(x: int, y: int, zoom: int) -> np.ndarray:
+def fetch_tile(session: requests.Session, x: int, y: int, zoom: int) -> np.ndarray:
     url = TILE_URL.format(z=zoom, x=x, y=y)
-    res = requests.get(url, timeout=30)
+    try:
+        res = session.get(url, timeout=10)
+    except requests.RequestException:
+        return np.full((TILE_SIZE, TILE_SIZE), np.nan, dtype="float32")
+
     if res.status_code != 200:
         # データが存在しないタイル(海上など)はNaN埋めで扱う
         return np.full((TILE_SIZE, TILE_SIZE), np.nan, dtype="float32")
@@ -83,16 +88,29 @@ def build_mosaic() -> tuple[np.ndarray, float, float, float]:
 
     n_cols = len(xs)
     n_rows = len(ys)
+    total = n_cols * n_rows
     mosaic = np.full((n_rows * TILE_SIZE, n_cols * TILE_SIZE), np.nan, dtype="float32")
 
-    print(f"タイル取得中: {n_cols} x {n_rows} = {n_cols * n_rows}枚 (zoom={ZOOM})")
+    print(f"タイル取得中: {n_cols} x {n_rows} = {total}枚 (zoom={ZOOM})", flush=True)
 
-    for row_i, ty in enumerate(ys):
-        for col_i, tx in enumerate(xs):
-            tile = fetch_tile(tx, ty, ZOOM)
+    jobs = [(row_i, col_i, tx, ty) for row_i, ty in enumerate(ys) for col_i, tx in enumerate(xs)]
+    session = requests.Session()
+    done = 0
+
+    with ThreadPoolExecutor(max_workers=16) as executor:
+        futures = {
+            executor.submit(fetch_tile, session, tx, ty, ZOOM): (row_i, col_i)
+            for row_i, col_i, tx, ty in jobs
+        }
+        for future in as_completed(futures):
+            row_i, col_i = futures[future]
+            tile = future.result()
             r0 = row_i * TILE_SIZE
             c0 = col_i * TILE_SIZE
             mosaic[r0:r0 + TILE_SIZE, c0:c0 + TILE_SIZE] = tile
+            done += 1
+            if done % 20 == 0 or done == total:
+                print(f"  {done}/{total} 枚取得完了", flush=True)
 
     # モザイク全体のWeb Mercator範囲
     left, _, _, top = tile_bounds_3857(x_min_tile, y_min_tile, ZOOM)
@@ -121,6 +139,7 @@ def main() -> None:
     }
     with rasterio.open(raw_3857_path, "w", **profile) as dst:
         dst.write(mosaic, 1)
+    print("モザイク結合完了。EPSG:4326へ再投影中...", flush=True)
 
     # EPSG:4326へ再投影
     dst_path = RASTERS_DIR / "gsi_elevation.tif"
