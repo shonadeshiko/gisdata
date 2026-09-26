@@ -81,7 +81,15 @@ fetch("data/catalog.json")
 
 // 指定バッファ内の1ラスタの統計値(平均・最小・最大・サンプル数)を計算する
 async function computeRasterBufferStats(rasterMeta, bufferPolygon, bufferBbox) {
-  const tiff = await GeoTIFF.fromUrl(`data/${rasterMeta.path}`);
+  // GitHub PagesがHTTP Rangeリクエストに対応していないため、
+  // fromUrl(部分取得)ではなく全体を取得してから読み込む方式にする。
+  // ラスタが数十MBを超えるようになったら、Range対応のホスティング
+  // (Cloudflare R2等)への移行を検討する。
+  const buffer = await fetch(`data/${rasterMeta.path}`).then((res) => {
+    if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
+    return res.arrayBuffer();
+  });
+  const tiff = await GeoTIFF.fromArrayBuffer(buffer);
   const image = await tiff.getImage();
 
   const imgBbox = image.getBoundingBox(); // [minX, minY, maxX, maxY]
