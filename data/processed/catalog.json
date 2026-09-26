@@ -34,6 +34,13 @@
       "unit": "区分(-1,0,1)",
       "description": "2020年から2024年にかけての開発圧の変化。-1:減少 0:変化なし 1:増加。",
       "path": "rasters/chiba_dev_pressure.tif"
+    },
+    {
+      "id": "gsi_elevation",
+      "name": "標高（国土地理院 標高タイル DEM10B）",
+      "unit": "m",
+      "description": "国土地理院の標高タイル(DEM10B, 10mメッシュ)から取得した印旛沼流域周辺の標高データ。",
+      "path": "rasters/gsi_elevation.tif"
     }
   ]
 }
