@@ -1,0 +1,11 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# 元データ（大容量になりうるためGit管理外。取得はpipeline/rawのスクリプトで再現する）
+data/raw/*
+!data/raw/.gitkeep
+
+# OS
+.DS_Store
