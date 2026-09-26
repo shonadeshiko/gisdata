@@ -21,6 +21,9 @@
   #raster-results table { border-collapse: collapse; width: 100%; margin-top: 6px; }
   #raster-results th, #raster-results td { border: 1px solid #ddd; padding: 3px 6px; text-align: right; }
   #raster-results th:first-child, #raster-results td:first-child { text-align: left; }
+  #legend { margin-top: 8px; font-size: 12px; }
+  #legend .bar { height: 10px; background: linear-gradient(to right, #fff5eb, #7f2704); border-radius: 2px; }
+  #legend .labels { display: flex; justify-content: space-between; margin-top: 2px; }
 </style>
 </head>
 <body>
@@ -32,6 +35,14 @@
     バッファ半径 (m):
     <input type="number" id="radius" value="300" min="50" max="3000" step="50" />
   </label>
+  <label>
+    <input type="checkbox" id="toggle-mesh" checked />
+    500mメッシュ GI保全スコア（千葉県）
+  </label>
+  <div id="legend">
+    <div class="bar"></div>
+    <div class="labels"><span>低</span><span>高</span></div>
+  </div>
   <div id="result">クリックして計算</div>
   <div id="raster-results"></div>
 </div>
@@ -152,7 +163,7 @@ const map = new maplibregl.Map({
   zoom: 11,
 });
 
-map.on("load", () => {
+map.on("load", async () => {
   map.addSource("facilities", { type: "geojson", data: facilities });
   map.addLayer({
     id: "facilities-point",
@@ -160,6 +171,69 @@ map.on("load", () => {
     source: "facilities",
     paint: { "circle-radius": 6, "circle-color": "#d64545" },
   });
+
+  try {
+    const vectorsCatalog = await fetch("data/vectors_catalog.json").then((r) => r.json());
+    const vectors = vectorsCatalog.vectors || [];
+
+    const mesh = vectors.find((v) => v.id === "chiba_mesh500m_gi");
+    if (mesh) {
+      map.addSource("chiba-mesh", { type: "geojson", data: mesh.path });
+      map.addLayer({
+        id: "chiba-mesh-fill",
+        type: "fill",
+        source: "chiba-mesh",
+        paint: {
+          "fill-color": [
+            "interpolate", ["linear"], ["get", "gi_conservation_score"],
+            0, "#fff5eb",
+            1, "#e6550d",
+            2, "#7f2704",
+          ],
+          "fill-opacity": 0.6,
+        },
+      });
+      map.addLayer({
+        id: "chiba-mesh-outline",
+        type: "line",
+        source: "chiba-mesh",
+        paint: { "line-color": "#999", "line-width": 0.3 },
+      });
+
+      map.on("click", "chiba-mesh-fill", (e) => {
+        const p = e.features[0].properties;
+        new maplibregl.Popup()
+          .setLngLat(e.lngLat)
+          .setHTML(
+            `<strong>メッシュ ${p.mesh4_code}</strong><br>
+             GI保全スコア: ${Number(p.gi_conservation_score).toFixed(2)}<br>
+             GI開発圧スコア: ${Number(p.gi_pressure_score).toFixed(2)}<br>
+             優先度ランク: ${p.priority_rank}<br>
+             市街地率: ${Number(p.urban_frac).toFixed(2)} / 森林率: ${Number(p.forest_frac).toFixed(2)}`
+          )
+          .addTo(map);
+      });
+
+      document.getElementById("toggle-mesh").addEventListener("change", (e) => {
+        const visibility = e.target.checked ? "visible" : "none";
+        map.setLayoutProperty("chiba-mesh-fill", "visibility", visibility);
+        map.setLayoutProperty("chiba-mesh-outline", "visibility", visibility);
+      });
+    }
+
+    const boundary = vectors.find((v) => v.id === "chiba_ecodrr_boundary");
+    if (boundary) {
+      map.addSource("chiba-ecodrr", { type: "geojson", data: boundary.path });
+      map.addLayer({
+        id: "chiba-ecodrr-line",
+        type: "line",
+        source: "chiba-ecodrr",
+        paint: { "line-color": "#2166ac", "line-width": 1.5 },
+      });
+    }
+  } catch (err) {
+    console.warn("ベクタカタログ(data/vectors_catalog.json)の読み込みに失敗しました。", err);
+  }
 });
 
 map.on("click", (e) => {

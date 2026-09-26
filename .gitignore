@@ -7,5 +7,8 @@ __pycache__/
 data/raw/*
 !data/raw/.gitkeep
 
+# ローカル確認用にコピーした生成物（CIが都度生成するため管理不要）
+web/data/
+
 # OS
 .DS_Store

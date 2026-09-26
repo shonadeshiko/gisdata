@@ -76,6 +76,25 @@ python -m http.server 8000
 カタログに登録されている全ラスタの平均・最小・最大値をブラウザ内
 （geotiff.js + turf.js）でオンデマンド計算する。サーバー計算は不要。
 
+## 千葉県 実データについて
+
+`pipeline/process/ingest_chiba_data.py` は、千葉県の実データ（水田占有率・
+HANDランク・開発圧のラスタ、EcoDRR有効範囲・500mメッシュGI統合スコアの
+ベクタ）を取り込み、EPSG:4326への再投影・COG化・GeoJSON化を行う。
+
+元データは `data/raw/chiba/{raster,vector}/` に配置する想定（Git管理外）。
+新しいファイルを追加する場合は、スクリプト内の `RASTER_DEFS` /
+`VECTOR_DEFS` に定義を1つ追加するだけでよい。
+
+現時点で未取込みのデータ（TWIランク、GI地形スコア、01/02/03/04番の
+高解像度データ、143MBのTWI元データなど）は、Google Drive経由のダウンロード
+サイズ制限（10MB）や一時的な不調により取り込めていない。今後は
+GitHubへの直接pushやGit LFSでの取り込みを検討する。
+
+```bash
+python pipeline/process/ingest_chiba_data.py
+```
+
 ## 今後のTODO
 
 - [ ] 印旛沼流域の境界データ（GeoJSON）を `data/processed/` に配置

@@ -1,0 +1,18 @@
+{
+  "vectors": [
+    {
+      "id": "chiba_ecodrr_boundary",
+      "name": "EcoDRR有効範囲（千葉県）",
+      "description": "Eco-DRR(生態系を活用した防災減災)の観点で有効とされる範囲の境界。",
+      "path": "vectors/chiba_ecodrr_boundary.geojson",
+      "feature_count": 1
+    },
+    {
+      "id": "chiba_mesh500m_gi",
+      "name": "500mメッシュ GI統合スコア（千葉県）",
+      "description": "500mメッシュ単位のグリーンインフラ(GI)関連スコア・開発圧・土地被覆割合等の統合データ。",
+      "path": "vectors/chiba_mesh500m_gi.geojson",
+      "feature_count": 18448
+    }
+  ]
+}

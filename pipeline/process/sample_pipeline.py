@@ -97,6 +97,24 @@ def to_cog(src_path: Path, dst_path: Path) -> None:
     )
 
 
+def merge_catalog(existing_path: Path, new_entries: list, key: str) -> None:
+    """既存カタログに追記する（他のパイプラインが登録した項目を消さないため）。"""
+    if existing_path.exists():
+        existing = json.loads(existing_path.read_text(encoding="utf-8"))
+    else:
+        existing = {key: []}
+
+    existing_ids = {item["id"] for item in existing.get(key, [])}
+    for entry in new_entries:
+        if entry["id"] not in existing_ids:
+            existing.setdefault(key, []).append(entry)
+        else:
+            existing[key] = [entry if item["id"] == entry["id"] else item for item in existing[key]]
+
+    existing_path.parent.mkdir(parents=True, exist_ok=True)
+    existing_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 def main() -> None:
     catalog = []
 
@@ -120,11 +138,8 @@ def main() -> None:
         print(f"生成完了: {cog_path}")
 
     catalog_path = PROCESSED_DIR / "catalog.json"
-    catalog_path.write_text(
-        json.dumps({"rasters": catalog}, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-    print(f"カタログ生成完了: {catalog_path}")
+    merge_catalog(catalog_path, catalog, "rasters")
+    print(f"カタログ更新完了: {catalog_path}")
 
 
 if __name__ == "__main__":

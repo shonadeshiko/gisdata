@@ -36,6 +36,10 @@ jobs:
       - name: Run pipeline
         run: |
           python pipeline/process/sample_pipeline.py
+          # 千葉県の元データ(data/raw/chiba)はGit管理外のため、CI環境には無い。
+          # 既存の処理済みデータ(data/processed)はリポジトリにコミット済みのものを使う。
+          # 元データをCIから取得できるようにしたら、以下を有効化する。
+          # python pipeline/process/ingest_chiba_data.py
 
       # TODO: Cloudflare R2 接続後、data/processed の成果物をアップロードするstepを追加
       # - name: Upload to R2
