@@ -18,37 +18,56 @@
     max-height: 90vh; overflow-y: auto;
   }
   #panel label { display: block; margin-top: 6px; }
+  #panel section { margin-top: 14px; padding-top: 10px; border-top: 1px solid #eee; }
+  #panel section:first-of-type { margin-top: 10px; border-top: none; padding-top: 0; }
+  #panel h2 { font-size: 12px; margin: 0 0 6px; color: #555; }
+  #panel .note { font-size: 11px; color: #888; margin: 4px 0 0; }
   #raster-results table { border-collapse: collapse; width: 100%; margin-top: 6px; }
   #raster-results th, #raster-results td { border: 1px solid #ddd; padding: 3px 6px; text-align: right; }
   #raster-results th:first-child, #raster-results td:first-child { text-align: left; }
   #legend { margin-top: 8px; font-size: 12px; }
   #legend .bar { height: 10px; background: linear-gradient(to right, #fff5eb, #7f2704); border-radius: 2px; }
   #legend .labels { display: flex; justify-content: space-between; margin-top: 2px; }
+  #result { font-weight: bold; margin-top: 8px; }
 </style>
 </head>
 <body>
 <div id="panel">
   <strong>印旛沼流域 GIS解析マップ（雛形）</strong>
-  <p>地図上をクリックすると、その地点のポテンシャル値と、
-  指定半径バッファ内の各ラスタの統計値を計算します。</p>
-  <label>
-    バッファ半径 (m):
-    <input type="number" id="radius" value="300" min="50" max="3000" step="50" />
-  </label>
-  <label>
-    ベースマップ:
-    <select id="base-layer-select"></select>
-  </label>
-  <label>
-    <input type="checkbox" id="toggle-mesh" checked />
-    500mメッシュ GI保全スコア（千葉県）
-  </label>
-  <div id="legend">
-    <div class="bar"></div>
-    <div class="labels"><span>低</span><span>高</span></div>
-  </div>
-  <div id="result">クリックして計算</div>
-  <div id="raster-results"></div>
+
+  <section>
+    <h2>① 表示するレイヤー</h2>
+    <label>
+      ベースマップ:
+      <select id="base-layer-select"></select>
+    </label>
+    <label>
+      <input type="checkbox" id="toggle-mesh" checked />
+      500mメッシュ GI保全スコア（千葉県）
+    </label>
+    <div id="legend">
+      <div class="bar"></div>
+      <div class="labels"><span>低い（保全の必要性: 低）</span><span>高い（保全の必要性: 高）</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>② クリック地点の分析</h2>
+    <label>
+      バッファ半径 (m):
+      <input type="number" id="radius" value="300" min="50" max="3000" step="50" />
+    </label>
+    <p class="note">地図上をクリックすると、その地点を中心とした
+    バッファ範囲内の各ラスタの統計値（平均・最小・最大・集計セル数）を計算します。</p>
+    <div id="raster-results"></div>
+  </section>
+
+  <section>
+    <h2>③ サンプル拠点からの距離ポテンシャル（デモ機能）</h2>
+    <p class="note">地図上の赤い点3箇所（架空の拠点A/B/C）からの
+    距離減衰で試算した参考値です。実データとは連動していません。</p>
+    <div id="result">クリックして計算</div>
+  </section>
 </div>
 <div id="map"></div>
 
@@ -154,14 +173,15 @@ async function calcBufferStatsForAllRasters(lng, lat, radiusMeters) {
     rasterCatalog.map((r) => computeRasterBufferStats(r, bufferPolygon, bufferBbox).catch((err) => ({ ...r, error: err.message })))
   );
 
-  let html = "<table><tr><th>ラスタ</th><th>平均</th><th>最小</th><th>最大</th><th>n</th></tr>";
+  let html = "<table><tr><th>ラスタ（単位）</th><th>平均</th><th>最小</th><th>最大</th><th>集計セル数</th></tr>";
   results.forEach((r) => {
+    const label = r.unit ? `${r.name}<br><span style="color:#888;font-weight:normal;">(${r.unit})</span>` : r.name;
     if (r.error) {
-      html += `<tr><td>${r.name}</td><td colspan="4">エラー: ${r.error}</td></tr>`;
+      html += `<tr><td>${label}</td><td colspan="4">エラー: ${r.error}</td></tr>`;
     } else if (r.outOfExtent || r.count === 0) {
-      html += `<tr><td>${r.name}</td><td colspan="4">範囲外/データなし</td></tr>`;
+      html += `<tr><td>${label}</td><td colspan="4">バッファ範囲がデータ範囲外です</td></tr>`;
     } else {
-      html += `<tr><td>${r.name}</td><td>${r.mean.toFixed(2)}</td><td>${r.min.toFixed(2)}</td><td>${r.max.toFixed(2)}</td><td>${r.count}</td></tr>`;
+      html += `<tr><td>${label}</td><td>${r.mean.toFixed(2)}</td><td>${r.min.toFixed(2)}</td><td>${r.max.toFixed(2)}</td><td>${r.count}</td></tr>`;
     }
   });
   html += "</table>";
@@ -332,11 +352,11 @@ map.on("click", (e) => {
 
   const potential = calcPotential(lng, lat);
   document.getElementById("result").textContent =
-    `地点(${lng.toFixed(4)}, ${lat.toFixed(4)}) のポテンシャル値: ${potential.toFixed(3)}`;
+    `地点(${lng.toFixed(4)}, ${lat.toFixed(4)}) の試算値: ${potential.toFixed(3)}`;
 
   new maplibregl.Popup()
     .setLngLat([lng, lat])
-    .setHTML(`ポテンシャル値: ${potential.toFixed(3)}`)
+    .setHTML(`拠点A/B/Cからの距離ポテンシャル(デモ): ${potential.toFixed(3)}`)
     .addTo(map);
 
   calcBufferStatsForAllRasters(lng, lat, radiusMeters);
