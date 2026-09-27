@@ -42,11 +42,15 @@
     </label>
     <label>
       <input type="checkbox" id="toggle-mesh" checked />
-      500mメッシュ GI保全スコア（千葉県）
+      500mメッシュ（千葉県）を表示
+    </label>
+    <label style="margin-left: 18px;">
+      色分け項目:
+      <select id="mesh-score-select"></select>
     </label>
     <div id="legend">
       <div class="bar"></div>
-      <div class="labels"><span>低い（保全の必要性: 低）</span><span>高い（保全の必要性: 高）</span></div>
+      <div class="labels" id="legend-labels"><span>低い（保全の必要性: 低）</span><span>高い（保全の必要性: 高）</span></div>
     </div>
   </section>
 
@@ -250,6 +254,74 @@ map.on("error", (e) => {
 
 let dataLayerListenersAttached = false;
 
+// メッシュの色分け対象スコアの定義(ポップアップで表示している項目から選べるようにする)。
+// domain/colorsは実データの分布を見て設定したもの。
+const MESH_SCORES = {
+  gi_conservation_score: {
+    label: "GI保全スコア",
+    domain: [0, 1, 2],
+    colors: ["#fff5eb", "#e6550d", "#7f2704"],
+    legendLow: "低い（保全の必要性: 低）",
+    legendHigh: "高い（保全の必要性: 高）",
+  },
+  gi_pressure_score: {
+    label: "GI開発圧スコア",
+    domain: [0, 0.65, 1.3],
+    colors: ["#f2f0f7", "#9e77c8", "#54278f"],
+    legendLow: "低い（開発圧: 低）",
+    legendHigh: "高い（開発圧: 高）",
+  },
+  priority_rank: {
+    label: "優先度ランク",
+    domain: [1, 3, 5],
+    colors: ["#edf8e9", "#74c476", "#005a32"],
+    legendLow: "低い（優先度: 低）",
+    legendHigh: "高い（優先度: 高）",
+  },
+  urban_frac: {
+    label: "市街地率",
+    domain: [0, 0.5, 1],
+    colors: ["#f7f7f7", "#969696", "#252525"],
+    legendLow: "低い（市街地率: 低）",
+    legendHigh: "高い（市街地率: 高）",
+  },
+  forest_frac: {
+    label: "森林率",
+    domain: [0, 0.5, 1],
+    colors: ["#f7fcf5", "#74c476", "#00441b"],
+    legendLow: "低い（森林率: 低）",
+    legendHigh: "高い（森林率: 高）",
+  },
+};
+
+let currentMeshScore = "gi_conservation_score";
+
+function meshFillColorExpression(scoreId) {
+  const cfg = MESH_SCORES[scoreId];
+  return [
+    "interpolate", ["linear"], ["get", scoreId],
+    cfg.domain[0], cfg.colors[0],
+    cfg.domain[1], cfg.colors[1],
+    cfg.domain[2], cfg.colors[2],
+  ];
+}
+
+function updateMeshLegend(scoreId) {
+  const cfg = MESH_SCORES[scoreId];
+  document.querySelector("#legend .bar").style.background =
+    `linear-gradient(to right, ${cfg.colors[0]}, ${cfg.colors[1]}, ${cfg.colors[2]})`;
+  document.getElementById("legend-labels").innerHTML =
+    `<span>${cfg.legendLow}</span><span>${cfg.legendHigh}</span>`;
+}
+
+function setMeshScore(scoreId) {
+  currentMeshScore = scoreId;
+  if (map.getLayer("chiba-mesh-fill")) {
+    map.setPaintProperty("chiba-mesh-fill", "fill-color", meshFillColorExpression(scoreId));
+  }
+  updateMeshLegend(scoreId);
+}
+
 async function addDataLayers() {
   try {
     const vectorsCatalog = await fetch("data/vectors_catalog.json").then((r) => r.json());
@@ -263,12 +335,7 @@ async function addDataLayers() {
         type: "fill",
         source: "chiba-mesh",
         paint: {
-          "fill-color": [
-            "interpolate", ["linear"], ["get", "gi_conservation_score"],
-            0, "#fff5eb",
-            1, "#e6550d",
-            2, "#7f2704",
-          ],
+          "fill-color": meshFillColorExpression(currentMeshScore),
           "fill-opacity": 0.6,
         },
       });
@@ -278,6 +345,7 @@ async function addDataLayers() {
         source: "chiba-mesh",
         paint: { "line-color": "#999", "line-width": 0.3 },
       });
+      updateMeshLegend(currentMeshScore);
 
       if (!dataLayerListenersAttached) {
         map.on("click", "chiba-mesh-fill", (e) => {
@@ -299,6 +367,16 @@ async function addDataLayers() {
           map.setLayoutProperty("chiba-mesh-fill", "visibility", visibility);
           map.setLayoutProperty("chiba-mesh-outline", "visibility", visibility);
         });
+
+        const meshScoreSelect = document.getElementById("mesh-score-select");
+        Object.entries(MESH_SCORES).forEach(([scoreId, cfg]) => {
+          const option = document.createElement("option");
+          option.value = scoreId;
+          option.textContent = cfg.label;
+          if (scoreId === currentMeshScore) option.selected = true;
+          meshScoreSelect.appendChild(option);
+        });
+        meshScoreSelect.addEventListener("change", (e) => setMeshScore(e.target.value));
       }
     }
 
