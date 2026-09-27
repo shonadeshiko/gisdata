@@ -233,8 +233,10 @@ baseLayerSelect.addEventListener("change", (e) => {
   const layer = BASE_LAYERS.find((l) => l.id === e.target.value);
   if (!layer || !layer.tiles) return;
   map.setStyle(baseLayerStyleSpec(layer));
-  // ベースマップの切り替えでstyleごと入れ替わるため、他レイヤーを再構築する
-  map.once("style.load", () => addDataLayers());
+  // "style.load"はこの構成(スプライト等を持たない軽量なスタイル)だと
+  // 発火しないことがあるため、新スタイルの読み込み・タイル取得が
+  // 落ち着いたことを示す"idle"を使ってレイヤーを再構築する。
+  map.once("idle", () => addDataLayers());
 });
 
 map.on("error", (e) => {
