@@ -3,6 +3,7 @@
 
 標高タイル(DEM10B, 10mメッシュ, 全国カバー)を該当エリア分だけダウンロードし、
 Web Mercator(EPSG:3857)でモザイク結合したのち、EPSG:4326に再投影してCOG化する。
+ファイルサイズを抑えるため、zoom13(約20m/px)・int16(m単位,小数切り捨て)で出力する。
 
 参考: 国土地理院 標高タイル
 https://maps.gsi.go.jp/development/ichiran.html
@@ -32,9 +33,12 @@ RASTERS_DIR = PROCESSED_DIR / "rasters"
 
 # 印旛沼流域周辺のバウンディングボックス (lon_min, lat_min, lon_max, lat_max)
 BBOX = (140.10, 35.62, 140.55, 35.92)
-ZOOM = 14
+# zoom14(約10m/px)だとファイルサイズが80MBを超え動作が重くなるため、
+# zoom13(約20m/px)に落として軽量化する。バッファ解析(数百m単位)には十分な解像度。
+ZOOM = 13
 TILE_URL = "https://cyberjapandata.gsi.go.jp/xyz/dem/{z}/{x}/{y}.txt"
 TILE_SIZE = 256
+ELEVATION_NODATA = -32768
 
 WEB_MERCATOR_EXTENT = 20037508.342789244  # 半周(m)
 
@@ -163,16 +167,32 @@ def main() -> None:
                 resampling=Resampling.bilinear,
             )
 
+    # float32 -> int16に変換して軽量化する(標高はcm単位の精度は不要なため)。
+    print("int16へ変換して軽量化中...", flush=True)
+    tmp_int16_path = RASTERS_DIR / "_tmp_elevation_int16.tif"
+    with rasterio.open(tmp_reproj_path) as src:
+        data = src.read(1)
+        nodata_mask = np.isnan(data)
+        data_int16 = np.round(data).astype("int16")
+        data_int16[nodata_mask] = ELEVATION_NODATA
+
+        int16_profile = src.profile.copy()
+        int16_profile.update({"dtype": "int16", "nodata": ELEVATION_NODATA})
+        with rasterio.open(tmp_int16_path, "w", **int16_profile) as dst:
+            dst.write(data_int16, 1)
+
     cog_translate(
-        str(tmp_reproj_path),
+        str(tmp_int16_path),
         str(dst_path),
         cog_profiles.get("deflate"),
+        config={"GDAL_TIFF_INTERNAL_MASK": "NO"},
         in_memory=False,
         quiet=True,
     )
 
     raw_3857_path.unlink()
     tmp_reproj_path.unlink()
+    tmp_int16_path.unlink()
 
     catalog_entry = {
         "id": "gsi_elevation",
