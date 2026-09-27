@@ -82,6 +82,7 @@ def to_cog(src_path: Path, dst_path: Path) -> None:
         str(src_path),
         str(dst_path),
         cog_profiles.get("deflate"),
+        overview_level=0,
         in_memory=False,
         quiet=True,
     )

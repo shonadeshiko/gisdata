@@ -186,6 +186,7 @@ def main() -> None:
         str(dst_path),
         cog_profiles.get("deflate"),
         config={"GDAL_TIFF_INTERNAL_MASK": "NO"},
+        overview_level=0,
         in_memory=False,
         quiet=True,
     )

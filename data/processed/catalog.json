@@ -41,6 +41,20 @@
       "unit": "m",
       "description": "国土地理院の標高タイル(DEM10B, 10mメッシュ)から取得した印旛沼流域周辺の標高データ。",
       "path": "rasters/gsi_elevation.tif"
+    },
+    {
+      "id": "chiba_twi_rank",
+      "name": "TWIランク（千葉県）",
+      "unit": "ランク(1-5)",
+      "description": "地形的湿潤度指数(TWI)に基づく浸水・湛水しやすさの目安ランク。値が大きいほど水が集まりやすい地形。",
+      "path": "rasters/chiba_twi_rank.tif"
+    },
+    {
+      "id": "chiba_gi_terrain_score",
+      "name": "GI地形スコア（千葉県）",
+      "unit": "ランク(1-5)",
+      "description": "地形条件から見たグリーンインフラ(GI)適性の統合スコア。",
+      "path": "rasters/chiba_gi_terrain_score.tif"
     }
   ]
 }
