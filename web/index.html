@@ -77,8 +77,14 @@ fetch("data/catalog.json")
     console.warn("ラスタカタログ(data/catalog.json)が見つかりません。パイプライン出力をweb/data/にコピーしてください。");
   });
 
-// 指定バッファ内の1ラスタの統計値(平均・最小・最大・サンプル数)を計算する
-async function computeRasterBufferStats(rasterMeta, bufferPolygon, bufferBbox) {
+// 一度取得したラスタのGeoTIFFイメージをキャッシュし、クリックのたびに
+// 同じファイル(数MB~十数MB)を再取得しないようにする。
+const geotiffImageCache = new Map();
+
+async function loadGeoTiffImage(rasterMeta) {
+  if (geotiffImageCache.has(rasterMeta.path)) {
+    return geotiffImageCache.get(rasterMeta.path);
+  }
   // GitHub PagesがHTTP Rangeリクエストに対応していないため、
   // fromUrl(部分取得)ではなく全体を取得してから読み込む方式にする。
   // ラスタが数十MBを超えるようになったら、Range対応のホスティング
@@ -89,6 +95,13 @@ async function computeRasterBufferStats(rasterMeta, bufferPolygon, bufferBbox) {
   });
   const tiff = await GeoTIFF.fromArrayBuffer(buffer);
   const image = await tiff.getImage();
+  geotiffImageCache.set(rasterMeta.path, image);
+  return image;
+}
+
+// 指定バッファ内の1ラスタの統計値(平均・最小・最大・サンプル数)を計算する
+async function computeRasterBufferStats(rasterMeta, bufferPolygon, bufferBbox) {
+  const image = await loadGeoTiffImage(rasterMeta);
 
   const imgBbox = image.getBoundingBox(); // [minX, minY, maxX, maxY]
   const width = image.getWidth();
@@ -125,10 +138,13 @@ async function computeRasterBufferStats(rasterMeta, bufferPolygon, bufferBbox) {
       const latC = imgBbox[3] - (y0 + row + 0.5) * pixelHeight;
       if (!turf.booleanPointInPolygon([lonC, latC], bufferPolygon)) continue;
 
-      sum += value;
+      // scaleが指定されている場合は保存時にscale倍されているので割り戻す
+      const realValue = rasterMeta.scale ? value / rasterMeta.scale : value;
+
+      sum += realValue;
       count += 1;
-      if (value < min) min = value;
-      if (value > max) max = value;
+      if (realValue < min) min = realValue;
+      if (realValue > max) max = realValue;
     }
   }
 
@@ -256,45 +272,52 @@ let dataLayerListenersAttached = false;
 
 // メッシュの色分け対象スコアの定義(ポップアップで表示している項目から選べるようにする)。
 // domain/colorsは実データの分布を見て設定したもの。
+// domainは実データの分布(p99付近)に合わせて設定。gi_conservation_score/
+// gi_pressure_scoreは中央値が0付近・裾が長い分布のため、domainを[0,1,2]や
+// [0,0.65,1.3]のような単純な範囲にすると大半のメッシュがほぼ同色(無色)に
+// なってしまっていた。実データの99パーセンタイル付近を上限にして
+// 色の差が見えるようにしている。
 const MESH_SCORES = {
-  gi_conservation_score: {
-    label: "GI保全スコア",
-    domain: [0, 1, 2],
-    colors: ["#fff5eb", "#e6550d", "#7f2704"],
-    legendLow: "低い（保全の必要性: 低）",
-    legendHigh: "高い（保全の必要性: 高）",
-  },
-  gi_pressure_score: {
-    label: "GI開発圧スコア",
-    domain: [0, 0.65, 1.3],
-    colors: ["#f2f0f7", "#9e77c8", "#54278f"],
-    legendLow: "低い（開発圧: 低）",
-    legendHigh: "高い（開発圧: 高）",
-  },
   priority_rank: {
     label: "優先度ランク",
     domain: [1, 3, 5],
     colors: ["#edf8e9", "#74c476", "#005a32"],
-    legendLow: "低い（優先度: 低）",
-    legendHigh: "高い（優先度: 高）",
+    legendLow: "低い",
+    legendHigh: "高い",
+  },
+  gi_conservation_score: {
+    label: "GI保全スコア",
+    domain: [0, 0.1, 0.3],
+    colors: ["#fff5eb", "#e6550d", "#7f2704"],
+    legendLow: "低い",
+    legendHigh: "高い",
+  },
+  gi_pressure_score: {
+    label: "GI開発圧スコア",
+    domain: [0, 0.2, 0.5],
+    colors: ["#f2f0f7", "#9e77c8", "#54278f"],
+    legendLow: "低い",
+    legendHigh: "高い",
   },
   urban_frac: {
     label: "市街地率",
     domain: [0, 0.5, 1],
     colors: ["#f7f7f7", "#969696", "#252525"],
-    legendLow: "低い（市街地率: 低）",
-    legendHigh: "高い（市街地率: 高）",
+    legendLow: "低い",
+    legendHigh: "高い",
   },
   forest_frac: {
     label: "森林率",
     domain: [0, 0.5, 1],
     colors: ["#f7fcf5", "#74c476", "#00441b"],
-    legendLow: "低い（森林率: 低）",
-    legendHigh: "高い（森林率: 高）",
+    legendLow: "低い",
+    legendHigh: "高い",
   },
 };
 
-let currentMeshScore = "gi_conservation_score";
+// 既定は優先度ランク(1-5の離散値で色の差が分かりやすい)。GI保全/開発圧
+// スコアは符号や解釈に未確認点があるため既定表示にはしない。
+let currentMeshScore = "priority_rank";
 
 function meshFillColorExpression(scoreId) {
   const cfg = MESH_SCORES[scoreId];
@@ -380,13 +403,13 @@ async function addDataLayers() {
       }
     }
 
-    const boundary = vectors.find((v) => v.id === "chiba_ecodrr_boundary");
+    const boundary = vectors.find((v) => v.id === "chiba_boundary_approx");
     if (boundary) {
-      map.addSource("chiba-ecodrr", { type: "geojson", data: `data/${boundary.path}` });
+      map.addSource("chiba-boundary", { type: "geojson", data: `data/${boundary.path}` });
       map.addLayer({
-        id: "chiba-ecodrr-line",
+        id: "chiba-boundary-line",
         type: "line",
-        source: "chiba-ecodrr",
+        source: "chiba-boundary",
         paint: { "line-color": "#2166ac", "line-width": 1.5 },
       });
     }

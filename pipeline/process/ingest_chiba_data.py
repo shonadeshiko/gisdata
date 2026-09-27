@@ -42,15 +42,15 @@ RASTER_DEFS = [
         "src": "HANDランク_千葉県.tif",
         "name": "HANDランク（千葉県）",
         "unit": "ランク(1-5)",
-        "description": "最近接水路からの比高(HAND)に基づく浸水リスクの目安ランク。値が小さいほど水路に近く低い。",
+        "description": "最近接水路との比高(HAND)による区分。値が大きいほど水路との比高が小さい(水路に近い)。",
         "resampling": Resampling.nearest,
     },
     {
         "id": "chiba_dev_pressure",
         "src": "開発圧_2020-2024_千葉県.tif",
         "name": "開発圧 2020-2024（千葉県）",
-        "unit": "区分(-1,0,1)",
-        "description": "2020年から2024年にかけての開発圧の変化。-1:減少 0:変化なし 1:増加。",
+        "unit": "区分(-1,0,+1)",
+        "description": "2020年から2024年にかけての開発圧の変化区分(-1/0/+1)。符号が示す向き(増加/減少)は未確認のため断定しない。",
         "resampling": Resampling.nearest,
     },
     {
@@ -65,20 +65,20 @@ RASTER_DEFS = [
         "id": "chiba_gi_terrain_score",
         "src": "GI地形スコア_千葉県.tif",
         "name": "GI地形スコア（千葉県）",
-        "unit": "ランク(1-5)",
-        "description": "地形条件から見たグリーンインフラ(GI)適性の統合スコア。",
-        "resampling": Resampling.nearest,
-        "cast_to_uint8": True,  # 元はfloat32だが値は1-5の整数ランクなので軽量化する
+        "unit": "スコア(1.0-5.0)",
+        "description": "地形条件から見たグリーンインフラ(GI)適性の統合スコア(連続値)。",
+        "resampling": Resampling.bilinear,
+        "uint8_scale": 10,  # 10倍してuint8化(小数点以下1桁の精度を保持)。frontendで10で割り戻す
     },
 ]
 
 # id, 元ファイル名, 表示名, 説明
 VECTOR_DEFS = [
     {
-        "id": "chiba_ecodrr_boundary",
+        "id": "chiba_boundary_approx",
         "src": "千葉県域_EcoDRR有効範囲.gpkg",
-        "name": "EcoDRR有効範囲（千葉県）",
-        "description": "Eco-DRR(生態系を活用した防災減災)の観点で有効とされる範囲の境界。",
+        "name": "千葉県域（近似）",
+        "description": "千葉県の県域を近似したポリゴン。特定の政策・事業(Eco-DRR等)の指定範囲を示すものではない。",
     },
     {
         "id": "chiba_mesh500m_gi",
@@ -90,8 +90,17 @@ VECTOR_DEFS = [
 
 
 def reproject_to_cog(
-    src_path: Path, dst_cog_path: Path, resampling: Resampling, cast_to_uint8: bool = False
+    src_path: Path,
+    dst_cog_path: Path,
+    resampling: Resampling,
+    uint8_scale: float | None = None,
 ) -> None:
+    """
+    uint8_scale を指定すると、値をscale倍してuint8(0-255)に丸めて保存する
+    (例: 1.0-5.0の連続値をscale=10で保存すると10-50のuint8になり、
+    frontend側でscaleで割り戻すことで小数点以下1桁の精度を保ったまま軽量化できる)。
+    整数ランクなど元々小さい整数値のデータは uint8_scale=1 を指定する。
+    """
     with rasterio.open(src_path) as src:
         transform, width, height = calculate_default_transform(
             src.crs, DST_CRS, src.width, src.height, *src.bounds
@@ -105,41 +114,38 @@ def reproject_to_cog(
                 "height": height,
             }
         )
-        if cast_to_uint8:
-            # 値が0-255の範囲に収まる整数ランクデータをuint8化して軽量化する
-            kwargs["dtype"] = "uint8"
-            kwargs["nodata"] = 0
+        if uint8_scale is not None:
+            kwargs["dtype"] = "float32"
 
         tmp_path = dst_cog_path.with_suffix(".reproj.tif")
         dst_cog_path.parent.mkdir(parents=True, exist_ok=True)
 
         with rasterio.open(tmp_path, "w", **kwargs) as dst:
             for band in range(1, src.count + 1):
-                if cast_to_uint8:
-                    src_data = src.read(band)
-                    dst_data = np.zeros((height, width), dtype="uint8")
-                    reproject(
-                        source=src_data,
-                        destination=dst_data,
-                        src_transform=src.transform,
-                        src_crs=src.crs,
-                        src_nodata=src.nodata,
-                        dst_transform=transform,
-                        dst_crs=DST_CRS,
-                        dst_nodata=0,
-                        resampling=resampling,
-                    )
-                    dst.write(dst_data, band)
-                else:
-                    reproject(
-                        source=rasterio.band(src, band),
-                        destination=rasterio.band(dst, band),
-                        src_transform=src.transform,
-                        src_crs=src.crs,
-                        dst_transform=transform,
-                        dst_crs=DST_CRS,
-                        resampling=resampling,
-                    )
+                reproject(
+                    source=rasterio.band(src, band),
+                    destination=rasterio.band(dst, band),
+                    src_transform=src.transform,
+                    src_crs=src.crs,
+                    dst_transform=transform,
+                    dst_crs=DST_CRS,
+                    resampling=resampling,
+                )
+
+    if uint8_scale is not None:
+        with rasterio.open(tmp_path) as src:
+            data = src.read(1)
+            nodata_mask = np.isnan(data) if src.nodata is None else (data == src.nodata)
+            scaled = np.clip(np.round(data * uint8_scale), 0, 255).astype("uint8")
+            scaled[nodata_mask] = 0
+
+            uint8_profile = src.profile.copy()
+            uint8_profile.update({"dtype": "uint8", "nodata": 0})
+            uint8_path = dst_cog_path.with_suffix(".uint8.tif")
+            with rasterio.open(uint8_path, "w", **uint8_profile) as dst:
+                dst.write(scaled, 1)
+        tmp_path.unlink()
+        tmp_path = uint8_path
 
     # ブラウザ側はCOGを全体取得してから自前でウィンドウ読み込みする方式のため、
     # ズームレベル別のオーバービュー(ピラミッド)は使わない。生成すると
@@ -165,19 +171,19 @@ def process_rasters() -> list[dict]:
 
         dst_path = RASTERS_DIR / f"{definition['id']}.tif"
         print(f"処理中: {definition['src']} -> {dst_path.name}")
-        reproject_to_cog(
-            src_path, dst_path, definition["resampling"], definition.get("cast_to_uint8", False)
-        )
+        uint8_scale = definition.get("uint8_scale")
+        reproject_to_cog(src_path, dst_path, definition["resampling"], uint8_scale)
 
-        catalog.append(
-            {
-                "id": definition["id"],
-                "name": definition["name"],
-                "unit": definition["unit"],
-                "description": definition["description"],
-                "path": f"rasters/{definition['id']}.tif",
-            }
-        )
+        entry = {
+            "id": definition["id"],
+            "name": definition["name"],
+            "unit": definition["unit"],
+            "description": definition["description"],
+            "path": f"rasters/{definition['id']}.tif",
+        }
+        if uint8_scale is not None:
+            entry["scale"] = uint8_scale
+        catalog.append(entry)
         print(f"完了: {dst_path}")
     return catalog
 

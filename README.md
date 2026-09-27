@@ -49,12 +49,12 @@ cd pipeline
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python process/sample_pipeline.py
+python process/ingest_chiba_data.py   # 元データが data/raw/chiba/ にある場合
 ```
 
 これで `data/processed/rasters/*.tif`（COG）と `data/processed/catalog.json`
 （ラスタ一覧）が生成される。ラスタを追加したいときは
-`pipeline/process/sample_pipeline.py` の `RASTER_DEFS` に定義を1つ足すだけでよい。
+`pipeline/process/ingest_chiba_data.py` の `RASTER_DEFS` に定義を1つ足すだけでよい。
 
 ## フロントエンドの確認
 
@@ -111,17 +111,28 @@ pushでは実行せず、GitHub Actionsの `Ingest GSI Elevation Data`
 ## 千葉県 実データについて
 
 `pipeline/process/ingest_chiba_data.py` は、千葉県の実データ（水田占有率・
-HANDランク・開発圧のラスタ、EcoDRR有効範囲・500mメッシュGI統合スコアの
-ベクタ）を取り込み、EPSG:4326への再投影・COG化・GeoJSON化を行う。
+HANDランク・開発圧・TWIランク・GI地形スコアのラスタ、千葉県域(近似)・
+500mメッシュGI統合スコアのベクタ）を取り込み、EPSG:4326への再投影・
+COG化・GeoJSON化を行う。
 
 元データは `data/raw/chiba/{raster,vector}/` に配置する想定（Git管理外）。
 新しいファイルを追加する場合は、スクリプト内の `RASTER_DEFS` /
-`VECTOR_DEFS` に定義を1つ追加するだけでよい。
+`VECTOR_DEFS` に定義を1つ追加するだけでよい。連続値のデータをuint8で
+軽量化したい場合は `uint8_scale` を指定する（例: 10を指定すると
+値を10倍してuint8(0-255)に丸めて保存し、frontend側で10で割り戻す）。
 
-現時点で未取込みのデータ（TWIランク、GI地形スコア、01/02/03/04番の
-高解像度データ、143MBのTWI元データなど）は、Google Drive経由のダウンロード
-サイズ制限（10MB）や一時的な不調により取り込めていない。今後は
-GitHubへの直接pushやGit LFSでの取り込みを検討する。
+01/02/03/04番の高解像度データ、143MBのTWI元データなど、Google Drive
+経由のダウンロードサイズ制限（10MB）で自動取得できないデータは、
+GitHubへの直接pushで取り込む運用にしている。
+
+### データの注意点（既知の未確認事項）
+
+- **開発圧（chiba_dev_pressure）の符号の向き**：-1/0/+1のどちらが
+  「増加」でどちらが「減少」かが未確認（D-381）。確認が取れるまで、
+  説明文・凡例では「増加/減少」と断定しない。
+- **千葉県域（近似）**：ファイル名に「EcoDRR」を含むが、Eco-DRR
+  (生態系を活用した防災減災)の指定範囲などではなく、単なる県域の
+  近似ポリゴン。
 
 ```bash
 python pipeline/process/ingest_chiba_data.py
@@ -129,8 +140,7 @@ python pipeline/process/ingest_chiba_data.py
 
 ## 今後のTODO
 
-- [ ] 印旛沼流域の境界データ（GeoJSON）を `data/processed/` に配置
-- [ ] DEM・土地利用データの取得スクリプトを `pipeline/raw/` に追加
-- [ ] ポテンシャル計算ロジック（距離減衰モデル）の実装
+- [ ] 開発圧の符号(+1/-1がそれぞれ何を意味するか)の確認
 - [ ] Cloudflare R2 / Pages への接続とデプロイ設定
-- [ ] GitHub Actionsでパイプライン自動実行を有効化
+- [ ] GitHub Actionsでパイプライン自動実行を有効化（現状は元データが
+      CI環境に無いため、data/processedの既存コミットをそのまま使用）

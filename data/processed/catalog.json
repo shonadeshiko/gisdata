@@ -1,20 +1,6 @@
 {
   "rasters": [
     {
-      "id": "landuse_index",
-      "name": "土地利用指数（サンプル）",
-      "unit": "index(0-1)",
-      "description": "ダミーの土地利用指数。値が高いほど市街地を想定。",
-      "path": "rasters/landuse_index.tif"
-    },
-    {
-      "id": "rainfall",
-      "name": "降水量（サンプル）",
-      "unit": "mm",
-      "description": "ダミーの降水量データ。実データ整備後は気象データに差し替える。",
-      "path": "rasters/rainfall.tif"
-    },
-    {
       "id": "chiba_paddy_ratio",
       "name": "水田の占有率（千葉県）",
       "unit": "比率(0-1)",
@@ -25,14 +11,14 @@
       "id": "chiba_hand_rank",
       "name": "HANDランク（千葉県）",
       "unit": "ランク(1-5)",
-      "description": "最近接水路からの比高(HAND)に基づく浸水リスクの目安ランク。値が小さいほど水路に近く低い。",
+      "description": "最近接水路との比高(HAND)による区分。値が大きいほど水路との比高が小さい(水路に近い)。",
       "path": "rasters/chiba_hand_rank.tif"
     },
     {
       "id": "chiba_dev_pressure",
       "name": "開発圧 2020-2024（千葉県）",
-      "unit": "区分(-1,0,1)",
-      "description": "2020年から2024年にかけての開発圧の変化。-1:減少 0:変化なし 1:増加。",
+      "unit": "区分(-1,0,+1)",
+      "description": "2020年から2024年にかけての開発圧の変化区分(-1/0/+1)。符号が示す向き(増加/減少)は未確認のため断定しない。",
       "path": "rasters/chiba_dev_pressure.tif"
     },
     {
@@ -52,9 +38,10 @@
     {
       "id": "chiba_gi_terrain_score",
       "name": "GI地形スコア（千葉県）",
-      "unit": "ランク(1-5)",
-      "description": "地形条件から見たグリーンインフラ(GI)適性の統合スコア。",
-      "path": "rasters/chiba_gi_terrain_score.tif"
+      "unit": "スコア(1.0-5.0)",
+      "description": "地形条件から見たグリーンインフラ(GI)適性の統合スコア(連続値)。",
+      "path": "rasters/chiba_gi_terrain_score.tif",
+      "scale": 10
     }
   ]
 }
