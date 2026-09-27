@@ -188,7 +188,11 @@ const BASE_LAYERS = [
     name: "旧版地形図",
     // ここにタイルのURLテンプレートを設定すると選択できるようになる。
     // 例: tiles: ["https://ktgis.net/kjmapw/kjtilemap/データセットフォルダ/時期フォルダ/{z}/{x}/{y}.png"],
-    tiles:  ["https://ktgis.net/kjmapw/kjtilemap/kanto/00/{z}/{x}/{-y}.png"],
+    // 注意: "{-y}"はLeaflet独自の記法でMapLibreのスタイル仕様には存在しないトークン。
+    // MapLibreでTMS方式(Y軸反転)のタイルを使うときは、{y}はそのままにして
+    // scheme: "tms" を指定する。
+    tiles: ["https://ktgis.net/kjmapw/kjtilemap/kanto/00/{z}/{x}/{y}.png"],
+    scheme: "tms",
     tileSize: 256,
     attribution: "地図：旧版地形図1894年",
     maxzoom: 18,
@@ -203,6 +207,7 @@ function baseLayerStyleSpec(layer) {
         type: "raster",
         tiles: layer.tiles,
         tileSize: layer.tileSize || 256,
+        scheme: layer.scheme || "xyz",
         attribution: layer.attribution || "",
       },
     },
