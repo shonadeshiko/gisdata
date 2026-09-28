@@ -46,11 +46,19 @@ RASTER_DEFS = [
         "resampling": Resampling.nearest,
     },
     {
-        "id": "chiba_dev_pressure",
-        "src": "開発圧_2020-2024_千葉県.tif",
-        "name": "開発圧 2020-2024（千葉県）",
+        "id": "chiba_dev_pressure_2020_2024",
+        "src": "開発圧v2_2020-2024_千葉県.tif",
+        "name": "開発圧 2020-2024 v2（千葉県）",
         "unit": "区分(-1,0,+1)",
-        "description": "2020年から2024年にかけての開発圧の変化区分(-1/0/+1)。符号が示す向き(増加/減少)は未確認のため断定しない。",
+        "description": "2020年から2024年にかけての開発圧の変化区分(-1/0/+1、v2データ)。符号が示す向き(増加/減少)は未確認のため断定しない。",
+        "resampling": Resampling.nearest,
+    },
+    {
+        "id": "chiba_dev_pressure_2011_2022",
+        "src": "開発圧v2_2011-2022_千葉県.tif",
+        "name": "開発圧 2011-2022 v2（千葉県）",
+        "unit": "区分(-1,0,+1)",
+        "description": "2011年から2022年にかけての開発圧の変化区分(-1/0/+1、v2データ)。符号が示す向き(増加/減少)は未確認のため断定しない。",
         "resampling": Resampling.nearest,
     },
     {

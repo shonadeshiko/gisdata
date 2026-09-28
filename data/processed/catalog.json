@@ -15,13 +15,6 @@
       "path": "rasters/chiba_hand_rank.tif"
     },
     {
-      "id": "chiba_dev_pressure",
-      "name": "開発圧 2020-2024（千葉県）",
-      "unit": "区分(-1,0,+1)",
-      "description": "2020年から2024年にかけての開発圧の変化区分(-1/0/+1)。符号が示す向き(増加/減少)は未確認のため断定しない。",
-      "path": "rasters/chiba_dev_pressure.tif"
-    },
-    {
       "id": "gsi_elevation",
       "name": "標高（国土地理院 標高タイル DEM10B）",
       "unit": "m",
@@ -42,6 +35,20 @@
       "description": "地形条件から見たグリーンインフラ(GI)適性の統合スコア(連続値)。",
       "path": "rasters/chiba_gi_terrain_score.tif",
       "scale": 10
+    },
+    {
+      "id": "chiba_dev_pressure_2020_2024",
+      "name": "開発圧 2020-2024 v2（千葉県）",
+      "unit": "区分(-1,0,+1)",
+      "description": "2020年から2024年にかけての開発圧の変化区分(-1/0/+1、v2データ)。符号が示す向き(増加/減少)は未確認のため断定しない。",
+      "path": "rasters/chiba_dev_pressure_2020_2024.tif"
+    },
+    {
+      "id": "chiba_dev_pressure_2011_2022",
+      "name": "開発圧 2011-2022 v2（千葉県）",
+      "unit": "区分(-1,0,+1)",
+      "description": "2011年から2022年にかけての開発圧の変化区分(-1/0/+1、v2データ)。符号が示す向き(増加/減少)は未確認のため断定しない。",
+      "path": "rasters/chiba_dev_pressure_2011_2022.tif"
     }
   ]
 }
