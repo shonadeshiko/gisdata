@@ -32,6 +32,20 @@
   .categorical-legend .swatch-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
   .categorical-legend .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
   #extra-vectors-panel label { margin-top: 4px; }
+  #extra-vectors-details summary { font-size: 12px; margin-top: 4px; }
+  #results-panel {
+    display: none;
+    position: absolute; top: 12px; right: 12px; z-index: 1;
+    background: white; padding: 10px 14px; border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3); font-size: 13px; max-width: 320px;
+    max-height: 90vh; overflow-y: auto;
+  }
+  #results-panel-header { display: flex; justify-content: space-between; align-items: center; }
+  #results-panel-close {
+    border: none; background: none; cursor: pointer; font-size: 16px; line-height: 1;
+    color: #888; padding: 0 0 0 10px;
+  }
+  #results-panel-close:hover { color: #333; }
 </style>
 </head>
 <body>
@@ -69,7 +83,10 @@
       <input type="range" id="infiltration-opacity" min="0" max="1" step="0.05" value="0.5" />
     </label>
     <div id="infiltration-legend" class="categorical-legend"></div>
-    <div id="extra-vectors-panel" style="margin-top: 10px;"></div>
+    <details id="extra-vectors-details" style="margin-top: 10px;">
+      <summary style="cursor: pointer; color: #555;">その他のベクタレイヤー</summary>
+      <div id="extra-vectors-panel" style="margin-top: 6px;"></div>
+    </details>
   </section>
 
   <section>
@@ -108,11 +125,18 @@
     </div>
     <p class="note">結果の「平均」は集計セルの合計(sum)を集計セル数(count)で
     割った値で、比率として扱いたい場合の「割合」と同じ値です。カテゴリカルな
-    ラスタ(土地被覆区分など)は区分ごとの集計セル数を表示します。</p>
+    ラスタ(土地被覆区分など)は区分ごとの集計セル数を表示します。計算結果は
+    右側に表示されます。</p>
     <button type="button" id="analysis-area-clear">分析範囲を消す</button>
-    <div id="raster-results"></div>
   </section>
 
+</div>
+<div id="results-panel">
+  <div id="results-panel-header">
+    <strong>分析結果</strong>
+    <button type="button" id="results-panel-close" aria-label="閉じる">×</button>
+  </div>
+  <div id="raster-results"></div>
 </div>
 <div id="map"></div>
 
@@ -409,6 +433,7 @@ async function computeRasterBufferStats(rasterMeta, bufferPolygon, bufferBbox) {
 // 全ラスタの統計値を計算し、結果テーブルを描画する。
 async function calcStatsForAllRastersInPolygon(polygon) {
   showAnalysisArea(polygon);
+  document.getElementById("results-panel").style.display = "block";
   const bbox = turf.bbox(polygon);
 
   const resultsEl = document.getElementById("raster-results");
@@ -623,7 +648,10 @@ function clearAnalysisArea() {
   if (src) src.setData({ type: "FeatureCollection", features: [] });
   clearDrawPoints();
   document.getElementById("raster-results").innerHTML = "";
+  document.getElementById("results-panel").style.display = "none";
 }
+
+document.getElementById("results-panel-close").addEventListener("click", clearAnalysisArea);
 
 document.querySelectorAll('input[name="analysis-mode"]').forEach((radio) => {
   radio.addEventListener("change", () => {
