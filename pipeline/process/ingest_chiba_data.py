@@ -156,19 +156,8 @@ RASTER_DEFS = [
         "resampling": Resampling.nearest,
         "categorical": True,
     },
-    {
-        "id": "chiba_esv_landcover_change",
-        "src": "ESV_土地被覆変化_2020-2024_千葉県.tif",
-        "name": "土地被覆変化 2020-2024（千葉県）",
-        "unit": "変化区分",
-        "description": "2020年から2024年にかけての土地被覆の変化を示す区分値(0-4の少数区分、"
-        "大部分は0)。区分の詳細な定義は別途確認が必要。",
-        "resampling": Resampling.nearest,
-        "categorical": True,
-        # 元ファイルにnodataタグが無く、値0が全体の大半(変化なし/背景)を
-        # 占めるため、0をnodata相当として透明化する。
-        "nodata_override": 0,
-    },
+    # 「土地被覆変化2020-2024」は不要との判断で取り込み対象から外した
+    # (元ファイルはdata/raw/chiba/raster/に残したままでよい)。
     {
         "id": "chiba_esv_cooling_capacity",
         "src": "ESV19_冷却能力CC_千葉県.tif",
@@ -212,8 +201,9 @@ VECTOR_DEFS = [
     {
         "id": "chiba_esv_rl_score",
         "src": "ESV15_RLスコア_1km_千葉県.gpkg",
-        "name": "レッドリスト(RL)スコア 1kmメッシュ（千葉県）",
-        "description": "1kmメッシュ単位の、レッドリスト掲載種の記録数・種数等に基づく指標(score_species_weighted等)。",
+        "name": "希少種の生息密度スコア（1kmメッシュ）（千葉県）",
+        "description": "レッドリスト(絶滅危惧種)掲載種の記録数・種数等に基づく、希少種の"
+        "生息密度を示すスコア(1kmメッシュ単位)。値が高いほど希少種の記録が多い。",
         "color_field": "score_species_weighted",
     },
     # --- 以下は元ファイルが10MBを超えるため、Google Driveからの自動取得が
@@ -236,15 +226,19 @@ VECTOR_DEFS = [
     {
         "id": "chiba_esv_beneficiary_watershed_b",
         "src": "ESV_受益者_型B流域_千葉県.gpkg",
-        "name": "ESV受益者（型B流域）（千葉県）",
-        "description": "生態系サービスの受益者(型B流域)の範囲ポリゴン。下流で恩恵を受ける人口(pop_down)等を含む。",
+        "name": "土砂流出抑制の受益人口（流域単位）（千葉県）",
+        "description": "上流の土砂流出抑制(土壌保全)によって恩恵を受ける、下流域の人口を"
+        "流域単位で集計したポリゴン(pop_down=下流側の受益人口)。「型B流域」は"
+        "元データの流域区分の名称。",
         "color_field": "pop_down",
     },
     {
         "id": "chiba_esv_sdr_diff_watershed",
         "src": "ESV06_SDR差分_2020-2024_流域別_千葉県.gpkg",
-        "name": "SDR差分 2020-2024（流域別）（千葉県）",
-        "description": "2020年から2024年にかけての土砂輸出量(SDR)の変化を流域単位で集計したデータ。",
+        "name": "土砂流出量の変化 2020→2024（流域単位）（千葉県）",
+        "description": "2020年から2024年にかけての土砂流出量(SDR: 土砂輸送比モデルによる"
+        "推定値)の変化率を流域単位で集計したデータ。プラスは悪化(流出増)、"
+        "マイナスは改善(流出減)の目安。",
         "color_field": "sed_export_pct_raw",
     },
 ]

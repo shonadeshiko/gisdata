@@ -91,14 +91,6 @@
       "unit": "指数(0-1)",
       "description": "自然的景観の多様度を示す指数。値が高いほど景観の多様性が高い。",
       "path": "rasters/chiba_landscape_diversity.tif"
-    },
-    {
-      "id": "chiba_esv_landcover_change",
-      "name": "土地被覆変化 2020-2024（千葉県）",
-      "unit": "変化区分",
-      "description": "2020年から2024年にかけての土地被覆の変化を示す区分値(0-4の少数区分、大部分は0)。区分の詳細な定義は別途確認が必要。",
-      "path": "rasters/chiba_esv_landcover_change.tif",
-      "categorical": true
     }
   ]
 }

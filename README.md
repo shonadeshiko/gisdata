@@ -183,10 +183,12 @@ COG化・GeoJSON化を行う。
 （WSL環境から`git push`する場合はこの制限を受けない。手順書「Windows環境
 での作業（WSL）について」参照）。
 
-2026-10-03時点で、`chiba_landscape_diversity`・`chiba_esv_landcover_change`・
+2026-10-03時点で、`chiba_landscape_diversity`・
 `chiba_infiltration_potential`・`chiba_esv_beneficiary_watershed_b`・
 `chiba_esv_sdr_diff_watershed`・メッシュv2（`chiba_mesh500m_gi`の新版）は
-Web UI経由（25MB未満）で取り込み済み。以下はサイズの都合で**まだ未取得**
+Web UI経由（25MB未満）で取り込み済み（`ESV_土地被覆変化_2020-2024_千葉県.tif`
+も取得はしたが、不要と判断しRASTER_DEFSから外している）。以下はサイズの
+都合で**まだ未取得**
 （`RASTER_DEFS`には定義済みなので、ファイルを置いて
 `python pipeline/process/ingest_chiba_data.py`を再実行すれば有効になる）：
 
@@ -209,12 +211,6 @@ Web UI経由（25MB未満）で取り込み済み。以下はサイズの都合�
 - **千葉県域（近似）**：ファイル名に「EcoDRR」を含むが、Eco-DRR
   (生態系を活用した防災減災)の指定範囲などではなく、単なる県域の
   近似ポリゴン。
-- **土地被覆変化（chiba_esv_landcover_change）**：変化区分値(0-4)の正式な
-  定義が未確認のため、`categorical: true`＋`CATEGORICAL_RASTER_PALETTE`
-  による汎用の色分け（「クラスN」ラベル）で仮表示している。元ファイルに
-  nodataタグが無く、値0が大部分(変化なし/背景)を占めるため、
-  `nodata_override: 0`で0を透明化している。区分定義が分かったら
-  `CATEGORICAL_RASTER_LABELS`に正式なラベルを追記する。
 - **メッシュv2（chiba_mesh500m_gi）**：浸透機能を組み込んで優先度を
   再計算したv2版に切り替え済み。`gi_conservation_score`/`gi_pressure_score`/
   `priority_rank`/`urban_frac`/`forest_frac`/`mesh4_code`は旧版と同じ
@@ -231,9 +227,8 @@ python pipeline/process/ingest_chiba_data.py
 - [ ] 上記「Google Driveからの自動取得について」に挙げた、サイズ制限で
       未取得のファイル(JAXA土地被覆2020/2024・冷却能力CC・SDR)を
       data/raw/chiba/に配置し、パイプラインを再実行する(WSL経由のpush推奨)
-- [ ] JAXA土地被覆・ESV土地被覆変化の正式な区分定義を確認し、
-      `CATEGORICAL_RASTER_LABELS`に反映する
-- [ ] ESV受益者(型B流域)・SDR差分(流域別)の`color_field`が適切か
+- [ ] JAXA土地被覆の正式な区分定義を確認し、`CATEGORICAL_RASTER_LABELS`に反映する
+- [ ] 土砂流出抑制の受益人口・土砂流出量の変化の`color_field`が適切か
       （`pop_down`/`sed_export_pct_raw`）データの意味を確認する
 - [ ] Cloudflare R2 / Pages への接続とデプロイ設定
 - [ ] GitHub Actionsでパイプライン自動実行を有効化（現状は元データが

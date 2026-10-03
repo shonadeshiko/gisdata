@@ -16,8 +16,8 @@
     },
     {
       "id": "chiba_esv_rl_score",
-      "name": "レッドリスト(RL)スコア 1kmメッシュ（千葉県）",
-      "description": "1kmメッシュ単位の、レッドリスト掲載種の記録数・種数等に基づく指標(score_species_weighted等)。",
+      "name": "希少種の生息密度スコア（1kmメッシュ）（千葉県）",
+      "description": "レッドリスト(絶滅危惧種)掲載種の記録数・種数等に基づく、希少種の生息密度を示すスコア(1kmメッシュ単位)。値が高いほど希少種の記録が多い。",
       "path": "vectors/chiba_esv_rl_score.geojson",
       "feature_count": 1273,
       "color_field": "score_species_weighted"
@@ -31,16 +31,16 @@
     },
     {
       "id": "chiba_esv_beneficiary_watershed_b",
-      "name": "ESV受益者（型B流域）（千葉県）",
-      "description": "生態系サービスの受益者(型B流域)の範囲ポリゴン。下流で恩恵を受ける人口(pop_down)等を含む。",
+      "name": "土砂流出抑制の受益人口（流域単位）（千葉県）",
+      "description": "上流の土砂流出抑制(土壌保全)によって恩恵を受ける、下流域の人口を流域単位で集計したポリゴン(pop_down=下流側の受益人口)。「型B流域」は元データの流域区分の名称。",
       "path": "vectors/chiba_esv_beneficiary_watershed_b.geojson",
       "feature_count": 626,
       "color_field": "pop_down"
     },
     {
       "id": "chiba_esv_sdr_diff_watershed",
-      "name": "SDR差分 2020-2024（流域別）（千葉県）",
-      "description": "2020年から2024年にかけての土砂輸出量(SDR)の変化を流域単位で集計したデータ。",
+      "name": "土砂流出量の変化 2020→2024（流域単位）（千葉県）",
+      "description": "2020年から2024年にかけての土砂流出量(SDR: 土砂輸送比モデルによる推定値)の変化率を流域単位で集計したデータ。プラスは悪化(流出増)、マイナスは改善(流出減)の目安。",
       "path": "vectors/chiba_esv_sdr_diff_watershed.geojson",
       "feature_count": 626,
       "color_field": "sed_export_pct_raw"
