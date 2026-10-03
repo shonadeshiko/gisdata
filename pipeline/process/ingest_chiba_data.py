@@ -78,6 +78,112 @@ RASTER_DEFS = [
         "resampling": Resampling.bilinear,
         "uint8_scale": 10,  # 10倍してuint8化(小数点以下1桁の精度を保持)。frontendで10で割り戻す
     },
+    # --- ここから、GI関連サンプル(千葉県)で追加されたESV(生態系サービス価値)系データ ---
+    {
+        "id": "chiba_esv_natural_veg_ratio",
+        "src": "ESV11_農地周囲の自然植生割合_250m_千葉県.tif",
+        "name": "農地周囲の自然植生割合（千葉県）",
+        "unit": "比率(0-1)",
+        "description": "250mグリッドにおける、農地周囲の自然植生の割合。値が高いほど農地周辺の自然植生が多い。",
+        "resampling": Resampling.bilinear,
+    },
+    {
+        "id": "chiba_esv_disaster_exposure_pop",
+        "src": "ESV_防災_曝露人口_いずれかのハザード_250m_千葉県.tif",
+        "name": "防災：曝露人口（いずれかのハザード）（千葉県）",
+        "unit": "人",
+        "description": "250mグリッドにおける、いずれかの災害ハザード(洪水・土砂等)の想定区域に居住する人口。",
+        "resampling": Resampling.bilinear,
+    },
+    {
+        "id": "chiba_esv_cooling_benefit_pop",
+        "src": "ESV19_受益量_人x冷却量_250m_千葉県.tif",
+        "name": "冷却効果の受益量（人×冷却量）（千葉県）",
+        "unit": "人×冷却指数",
+        "description": "250mグリッドにおける、緑地等による冷却効果と、その効果を受ける人口を掛け合わせた受益量の指標。",
+        "resampling": Resampling.bilinear,
+    },
+    {
+        "id": "chiba_esv_cooling_amount",
+        "src": "ESV19_冷却量_250m_千葉県.tif",
+        "name": "冷却量（千葉県）",
+        "unit": "指数",
+        "description": "250mグリッドにおける、緑地等による気温の冷却量の指標。値が高いほど冷却効果が大きい。",
+        "resampling": Resampling.bilinear,
+    },
+    {
+        "id": "chiba_esv_population",
+        "src": "ESV_人口_250m_千葉県.tif",
+        "name": "人口（250mグリッド）（千葉県）",
+        "unit": "人",
+        "description": "250mグリッドにおける人口分布。",
+        "resampling": Resampling.bilinear,
+    },
+    {
+        "id": "chiba_esv_soil_erodibility_k",
+        "src": "ESV06_土壌侵食性K_千葉県.tif",
+        "name": "土壌侵食性K（千葉県）",
+        "unit": "係数",
+        "description": "土壌そのものの侵食されやすさを示すUSLE/RUSLEのK因子。値が高いほど侵食されやすい土壌。",
+        "resampling": Resampling.bilinear,
+    },
+    # --- 以下は元ファイルが10MBを超えるため、Google Driveからの自動取得が
+    # できず、data/raw/chiba/raster/ に手動で配置してから有効になる
+    # （詳細はREADME「千葉県 実データについて」参照）。---
+    {
+        "id": "chiba_landscape_diversity",
+        "src": "04_自然的景観の多様度_12_千葉県.tif",
+        "name": "自然的景観の多様度（千葉県）",
+        "unit": "指数(0-1)",
+        "description": "自然的景観の多様度を示す指数。値が高いほど景観の多様性が高い。",
+        "resampling": Resampling.bilinear,
+    },
+    {
+        "id": "chiba_landcover_2020",
+        "src": "JAXA_HRLC土地被覆_2020_千葉県.tif",
+        "name": "土地被覆区分 2020（JAXA HRLC・千葉県）",
+        "unit": "区分",
+        "description": "JAXA高解像度土地利用土地被覆図による土地被覆区分(カテゴリカル)。",
+        "resampling": Resampling.nearest,
+        "categorical": True,
+    },
+    {
+        "id": "chiba_landcover_2024",
+        "src": "JAXA_HRLC土地被覆_2024_千葉県.tif",
+        "name": "土地被覆区分 2024（JAXA HRLC・千葉県）",
+        "unit": "区分",
+        "description": "JAXA高解像度土地利用土地被覆図による土地被覆区分(カテゴリカル)。",
+        "resampling": Resampling.nearest,
+        "categorical": True,
+    },
+    {
+        "id": "chiba_esv_landcover_change",
+        "src": "ESV_土地被覆変化_2020-2024_千葉県.tif",
+        "name": "土地被覆変化 2020-2024（千葉県）",
+        "unit": "変化区分",
+        "description": "2020年から2024年にかけての土地被覆の変化を示す区分値。区分の詳細な定義は別途確認が必要。",
+        "resampling": Resampling.nearest,
+    },
+    {
+        "id": "chiba_esv_cooling_capacity",
+        "src": "ESV19_冷却能力CC_千葉県.tif",
+        "name": "冷却能力CC（千葉県）",
+        "unit": "指数",
+        "description": "緑地等による冷却能力(Cooling Capacity)の指標。ファイルサイズが大きい(約48MB)ため読み込みがやや重い。",
+        "resampling": Resampling.bilinear,
+    },
+    {
+        "id": "chiba_esv_sediment_export_sdr",
+        "src": "ESV06_土砂輸出量_SDR_千葉県.tif",
+        "name": "土砂輸出量SDR（千葉県）",
+        "unit": "t/ha/year相当",
+        "description": "土砂輸送比(SDR)モデルによる土砂輸出量の推定値。ファイルサイズが大きい(約53MB)ため読み込みがやや重い。",
+        "resampling": Resampling.bilinear,
+    },
+    # 「ESV12_生息地質指数_4脅威_千葉県.tif」(約570MB)は、本サイトの
+    # 「ブラウザが全ファイルを丸ごとfetchする」設計では配信が現実的でない
+    # サイズのため、意図的にRASTER_DEFSに含めていない。ダウンサンプリング
+    # 等で軽量化してから別途追加を検討すること。
 ]
 
 # id, 元ファイル名, 表示名, 説明
@@ -93,6 +199,55 @@ VECTOR_DEFS = [
         "src": "メッシュ500m_GI統合_千葉県.gpkg",
         "name": "500mメッシュ GI統合スコア（千葉県）",
         "description": "500mメッシュ単位のグリーンインフラ(GI)関連スコア・開発圧・土地被覆割合等の統合データ。",
+    },
+    {
+        "id": "chiba_esv_population_mesh",
+        "src": "ESV_人口_500mメッシュ_千葉県.gpkg",
+        "name": "人口（500mメッシュ）（千葉県）",
+        "description": "500mメッシュ単位の人口データ(国勢調査メッシュ統計ベース)。",
+    },
+    {
+        "id": "chiba_esv_rl_score",
+        "src": "ESV15_RLスコア_1km_千葉県.gpkg",
+        "name": "レッドリスト(RL)スコア 1kmメッシュ（千葉県）",
+        "description": "1kmメッシュ単位の、レッドリスト掲載種の記録数・種数等に基づく指標(score_species_weighted等)。",
+    },
+    # --- 以下は元ファイルが10MBを超えるため、Google Driveからの自動取得が
+    # できず、data/raw/chiba/vector/ に手動で配置してから有効になる
+    # （詳細はREADME「千葉県 実データについて」参照）。---
+    {
+        "id": "chiba_infiltration_potential",
+        "src": "03_地形・地質等から期待される雨水浸透機能_12_千葉県.shp",
+        "name": "雨水浸透機能（千葉県）",
+        "description": "地形・地質等から期待される雨水浸透機能の適地区分('result'列: "
+        "01最適地/02適地/03不適地/05判定不能/06判定対象外/07除外区域)。",
+        # 元のshpの属性(dbf)がlatin1として読めるUTF-8のバイト列になっている
+        # (実際はUTF-8encodeなのにfiona/pyogrioがlatin1として復号している)ため、
+        # 文字列列をlatin1で再エンコードしutf-8で読み直して文字化けを直す。
+        "fix_mojibake": True,
+        # 地形分類由来のポリゴンで頂点数が非常に多いため、0.0003度(約30m)まで
+        # 単純化して軽量化する。
+        "simplify_tolerance": 0.0003,
+    },
+    {
+        "id": "chiba_esv_beneficiary_watershed_b",
+        "src": "ESV_受益者_型B流域_千葉県.gpkg",
+        "name": "ESV受益者（型B流域）（千葉県）",
+        "description": "生態系サービスの受益者(型B流域)の範囲ポリゴン。",
+    },
+    {
+        "id": "chiba_esv_sdr_diff_watershed",
+        "src": "ESV06_SDR差分_2020-2024_流域別_千葉県.gpkg",
+        "name": "SDR差分 2020-2024（流域別）（千葉県）",
+        "description": "2020年から2024年にかけての土砂輸出量(SDR)の変化を流域単位で集計したデータ。",
+    },
+    {
+        "id": "chiba_mesh500m_gi_v2",
+        "src": "メッシュ500m_GI統合v2浸透込み優先度_千葉県.gpkg",
+        "name": "500mメッシュ GI統合スコア v2（浸透込み優先度）（千葉県）",
+        "description": "雨水浸透機能を組み込んで優先度を再計算した500mメッシュGI統合データ(v2)。"
+        "属性名が旧版(chiba_mesh500m_gi)と異なる可能性があるため、取り込み後に"
+        "web/index.htmlのMESH_SCORES/クリックポップアップの対応を確認すること。",
     },
 ]
 
@@ -191,6 +346,8 @@ def process_rasters() -> list[dict]:
         }
         if uint8_scale is not None:
             entry["scale"] = uint8_scale
+        if definition.get("categorical"):
+            entry["categorical"] = True
         catalog.append(entry)
         print(f"完了: {dst_path}")
     return catalog
@@ -208,8 +365,20 @@ def process_vectors() -> list[dict]:
         print(f"処理中: {definition['src']} -> {dst_path.name}")
 
         gdf = gpd.read_file(src_path)
+        if definition.get("fix_mojibake"):
+            for col in gdf.select_dtypes(include=["object", "str"]).columns:
+                if col == gdf.geometry.name:
+                    continue
+                gdf[col] = gdf[col].apply(
+                    lambda v: v.encode("latin1").decode("utf-8") if isinstance(v, str) else v
+                )
+
         if gdf.crs is not None and gdf.crs.to_string() != DST_CRS:
             gdf = gdf.to_crs(DST_CRS)
+
+        simplify_tolerance = definition.get("simplify_tolerance")
+        if simplify_tolerance:
+            gdf.geometry = gdf.geometry.simplify(simplify_tolerance, preserve_topology=True)
 
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         gdf.to_file(dst_path, driver="GeoJSON")

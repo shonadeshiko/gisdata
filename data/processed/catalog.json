@@ -49,6 +49,48 @@
       "unit": "区分(-1,0,+1)",
       "description": "2011年から2022年にかけての開発圧の変化区分(v2データ)。+1:都市化(開発圧増加) 0:変化なし -1:開発後退(緑地化等)。",
       "path": "rasters/chiba_dev_pressure_2011_2022.tif"
+    },
+    {
+      "id": "chiba_esv_natural_veg_ratio",
+      "name": "農地周囲の自然植生割合（千葉県）",
+      "unit": "比率(0-1)",
+      "description": "250mグリッドにおける、農地周囲の自然植生の割合。値が高いほど農地周辺の自然植生が多い。",
+      "path": "rasters/chiba_esv_natural_veg_ratio.tif"
+    },
+    {
+      "id": "chiba_esv_disaster_exposure_pop",
+      "name": "防災：曝露人口（いずれかのハザード）（千葉県）",
+      "unit": "人",
+      "description": "250mグリッドにおける、いずれかの災害ハザード(洪水・土砂等)の想定区域に居住する人口。",
+      "path": "rasters/chiba_esv_disaster_exposure_pop.tif"
+    },
+    {
+      "id": "chiba_esv_cooling_benefit_pop",
+      "name": "冷却効果の受益量（人×冷却量）（千葉県）",
+      "unit": "人×冷却指数",
+      "description": "250mグリッドにおける、緑地等による冷却効果と、その効果を受ける人口を掛け合わせた受益量の指標。",
+      "path": "rasters/chiba_esv_cooling_benefit_pop.tif"
+    },
+    {
+      "id": "chiba_esv_cooling_amount",
+      "name": "冷却量（千葉県）",
+      "unit": "指数",
+      "description": "250mグリッドにおける、緑地等による気温の冷却量の指標。値が高いほど冷却効果が大きい。",
+      "path": "rasters/chiba_esv_cooling_amount.tif"
+    },
+    {
+      "id": "chiba_esv_population",
+      "name": "人口（250mグリッド）（千葉県）",
+      "unit": "人",
+      "description": "250mグリッドにおける人口分布。",
+      "path": "rasters/chiba_esv_population.tif"
+    },
+    {
+      "id": "chiba_esv_soil_erodibility_k",
+      "name": "土壌侵食性K（千葉県）",
+      "unit": "係数",
+      "description": "土壌そのものの侵食されやすさを示すUSLE/RUSLEのK因子。値が高いほど侵食されやすい土壌。",
+      "path": "rasters/chiba_esv_soil_erodibility_k.tif"
     }
   ]
 }

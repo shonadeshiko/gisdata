@@ -26,13 +26,17 @@
   #raster-results th, #raster-results td { border: 1px solid #ddd; padding: 3px 6px; text-align: right; }
   #raster-results th:first-child, #raster-results td:first-child { text-align: left; }
   #legend { margin-top: 8px; font-size: 12px; }
-  #legend .bar { height: 10px; background: linear-gradient(to right, #fff5eb, #7f2704); border-radius: 2px; }
-  #legend .labels { display: flex; justify-content: space-between; margin-top: 2px; }
+  .bar { height: 10px; background: linear-gradient(to right, #fff5eb, #7f2704); border-radius: 2px; }
+  .labels { display: flex; justify-content: space-between; margin-top: 2px; }
+  .categorical-legend { margin-top: 4px; font-size: 11px; max-height: 140px; overflow-y: auto; }
+  .categorical-legend .swatch-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+  .categorical-legend .swatch { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+  #extra-vectors-panel label { margin-top: 4px; }
 </style>
 </head>
 <body>
 <div id="panel">
-  <strong>印旛沼流域 GIS解析マップ（雛形）</strong>
+  <strong>印旛沼流域 GIS解析マップ</strong>
 
   <section>
     <h2>① 表示するレイヤー</h2>
@@ -48,20 +52,64 @@
       色分け項目:
       <select id="mesh-score-select"></select>
     </label>
+    <label style="margin-left: 18px;">
+      透過度: <span id="mesh-opacity-value">0.6</span>
+      <input type="range" id="mesh-opacity" min="0" max="1" step="0.05" value="0.6" />
+    </label>
     <div id="legend">
       <div class="bar"></div>
-      <div class="labels" id="legend-labels"><span>低い（保全の必要性: 低）</span><span>高い（保全の必要性: 高）</span></div>
+      <div class="labels" id="legend-labels"><span>低い</span><span>高い</span></div>
     </div>
+    <label style="margin-top: 10px;">
+      <input type="checkbox" id="toggle-infiltration" />
+      雨水浸透機能（千葉県）を表示
+    </label>
+    <label style="margin-left: 18px;">
+      透過度: <span id="infiltration-opacity-value">0.5</span>
+      <input type="range" id="infiltration-opacity" min="0" max="1" step="0.05" value="0.5" />
+    </label>
+    <div id="infiltration-legend" class="categorical-legend"></div>
+    <div id="extra-vectors-panel" style="margin-top: 10px;"></div>
   </section>
 
   <section>
-    <h2>② クリック地点の分析</h2>
+    <h2>② ラスタの表示</h2>
     <label>
+      表示するラスタ:
+      <select id="raster-overlay-select"><option value="">なし</option></select>
+    </label>
+    <label style="margin-left: 18px;">
+      透過度: <span id="raster-overlay-opacity-value">0.8</span>
+      <input type="range" id="raster-overlay-opacity" min="0" max="1" step="0.05" value="0.8" />
+    </label>
+    <div id="raster-overlay-legend" class="categorical-legend"></div>
+  </section>
+
+  <section>
+    <h2>③ 範囲の分析</h2>
+    <label>
+      <input type="radio" name="analysis-mode" id="mode-buffer" value="buffer" checked />
+      クリックしてバッファ範囲を分析
+    </label>
+    <label style="margin-left: 18px;">
       バッファ半径 (m):
       <input type="number" id="radius" value="300" min="50" max="3000" step="50" />
     </label>
-    <p class="note">地図上をクリックすると、その地点を中心とした
-    バッファ範囲内の各ラスタの統計値（平均・最小・最大・集計セル数）を計算します。</p>
+    <label>
+      <input type="radio" name="analysis-mode" id="mode-draw" value="draw" />
+      ポリゴンを描いて分析
+    </label>
+    <div id="draw-controls" style="display: none; margin-left: 18px;">
+      <p class="note" style="margin: 4px 0;">地図上を順にクリックして頂点を打ち、
+      「この範囲で計算」を押すと確定します（3点以上必要）。</p>
+      <button type="button" id="draw-undo">1つ戻す</button>
+      <button type="button" id="draw-clear">クリア</button>
+      <button type="button" id="draw-finish">この範囲で計算</button>
+    </div>
+    <p class="note">結果の「平均」は集計セルの合計(sum)を集計セル数(count)で
+    割った値で、比率として扱いたい場合の「割合」と同じ値です。カテゴリカルな
+    ラスタ(土地被覆区分など)は区分ごとの集計セル数を表示します。</p>
+    <button type="button" id="analysis-area-clear">分析範囲を消す</button>
     <div id="raster-results"></div>
   </section>
 
@@ -72,7 +120,16 @@
 let rasterCatalog = [];
 fetch("data/catalog.json")
   .then((res) => res.json())
-  .then((json) => { rasterCatalog = json.rasters || []; })
+  .then((json) => {
+    rasterCatalog = json.rasters || [];
+    const select = document.getElementById("raster-overlay-select");
+    rasterCatalog.forEach((r) => {
+      const option = document.createElement("option");
+      option.value = r.id;
+      option.textContent = r.name;
+      select.appendChild(option);
+    });
+  })
   .catch(() => {
     console.warn("ラスタカタログ(data/catalog.json)が見つかりません。パイプライン出力をweb/data/にコピーしてください。");
   });
@@ -99,7 +156,182 @@ async function loadGeoTiffImage(rasterMeta) {
   return image;
 }
 
-// 指定バッファ内の1ラスタの統計値(平均・最小・最大・サンプル数)を計算する
+// ラスタの値を0-1の位置tから色(RGB)へ変換する簡易カラーランプ
+// (青→緑→黄→赤の4段階)。データの実際のmin/maxに合わせて自動的に
+// スケールするため、ラスタごとに個別のdomain設定は不要。
+const RASTER_OVERLAY_RAMP = [
+  [0.0, [49, 54, 149]],
+  [0.33, [69, 199, 142]],
+  [0.66, [254, 224, 139]],
+  [1.0, [215, 48, 39]],
+];
+
+function rampColor(t) {
+  t = Math.max(0, Math.min(1, t));
+  for (let i = 0; i < RASTER_OVERLAY_RAMP.length - 1; i++) {
+    const [t0, c0] = RASTER_OVERLAY_RAMP[i];
+    const [t1, c1] = RASTER_OVERLAY_RAMP[i + 1];
+    if (t >= t0 && t <= t1) {
+      const f = t1 > t0 ? (t - t0) / (t1 - t0) : 0;
+      return [
+        Math.round(c0[0] + (c1[0] - c0[0]) * f),
+        Math.round(c0[1] + (c1[1] - c0[1]) * f),
+        Math.round(c0[2] + (c1[2] - c0[2]) * f),
+      ];
+    }
+  }
+  return RASTER_OVERLAY_RAMP[RASTER_OVERLAY_RAMP.length - 1][1];
+}
+
+// カテゴリカルなラスタ(土地被覆区分など)用の色パレット。正式な凡例ラベルが
+// 判明していないため、ひとまず「クラスN」という汎用ラベルで表示する
+// (公式の区分定義が分かったらCATEGORICAL_RASTER_LABELSに追記して上書きする)。
+const CATEGORICAL_RASTER_PALETTE = [
+  "#1f78b4", "#33a02c", "#e31a1c", "#ff7f00", "#6a3d9a",
+  "#b15928", "#a6cee3", "#b2df8a", "#fb9a99", "#fdbf6f",
+  "#cab2d6", "#ffff99", "#8dd3c7", "#fccde5", "#bc80bd",
+];
+const CATEGORICAL_RASTER_LABELS = {}; // 例: { chiba_landcover_2020: { 1: "水域", 2: "建物" } }
+
+function categoricalRasterColor(code) {
+  const idx = (Math.round(code) - 1) % CATEGORICAL_RASTER_PALETTE.length;
+  if (idx < 0) return [160, 160, 160];
+  const hex = CATEGORICAL_RASTER_PALETTE[idx];
+  return [parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16)];
+}
+
+function categoricalRasterLabel(rasterId, code) {
+  const labels = CATEGORICAL_RASTER_LABELS[rasterId];
+  if (labels && labels[code]) return labels[code];
+  return `クラス${code}`;
+}
+
+// ラスタ全体を読み込み、値をカラーランプ(連続値)またはカテゴリパレット
+// (categorical:trueのラスタ)で着色したcanvasを作る。nodataセルは透明にする。
+async function buildRasterOverlayCanvas(rasterMeta) {
+  const image = await loadGeoTiffImage(rasterMeta);
+  const width = image.getWidth();
+  const height = image.getHeight();
+  const nodata = image.getGDALNoData();
+  const [band] = await image.readRasters();
+
+  let min = Infinity, max = -Infinity;
+  const presentCategories = new Set();
+  for (let i = 0; i < band.length; i++) {
+    const v = band[i];
+    if (nodata !== null && v === nodata) continue;
+    if (rasterMeta.categorical) {
+      presentCategories.add(Math.round(v));
+      continue;
+    }
+    const rv = rasterMeta.scale ? v / rasterMeta.scale : v;
+    if (rv < min) min = rv;
+    if (rv > max) max = rv;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  const imgData = ctx.createImageData(width, height);
+  for (let i = 0; i < band.length; i++) {
+    const v = band[i];
+    const o = i * 4;
+    if (nodata !== null && v === nodata) {
+      imgData.data[o + 3] = 0;
+      continue;
+    }
+    let r, g, b;
+    if (rasterMeta.categorical) {
+      [r, g, b] = categoricalRasterColor(Math.round(v));
+    } else {
+      const rv = rasterMeta.scale ? v / rasterMeta.scale : v;
+      const t = max > min ? (rv - min) / (max - min) : 0.5;
+      [r, g, b] = rampColor(t);
+    }
+    imgData.data[o] = r;
+    imgData.data[o + 1] = g;
+    imgData.data[o + 2] = b;
+    imgData.data[o + 3] = 200;
+  }
+  ctx.putImageData(imgData, 0, 0);
+  return { canvas, min, max, presentCategories, bbox: image.getBoundingBox() };
+}
+
+function renderRasterOverlayLegend(rasterMeta, min, max, presentCategories) {
+  const el = document.getElementById("raster-overlay-legend");
+  if (rasterMeta.categorical) {
+    const codes = [...presentCategories].sort((a, b) => a - b);
+    const rows = codes
+      .map((code) => {
+        const [r, g, b] = categoricalRasterColor(code);
+        return `<div class="swatch-row"><span class="swatch" style="background:rgb(${r},${g},${b})"></span>${categoricalRasterLabel(rasterMeta.id, code)}</div>`;
+      })
+      .join("");
+    el.innerHTML = `<div style="margin-top:4px;">${rasterMeta.name}</div>${rows}`;
+    return;
+  }
+  const gradient = RASTER_OVERLAY_RAMP.map(([, c]) => `rgb(${c[0]},${c[1]},${c[2]})`).join(", ");
+  el.innerHTML = `
+    <div style="margin-top:4px;">${rasterMeta.name}${rasterMeta.unit ? ` (${rasterMeta.unit})` : ""}</div>
+    <div class="bar" style="background: linear-gradient(to right, ${gradient});"></div>
+    <div class="labels"><span>${min.toFixed(2)}</span><span>${max.toFixed(2)}</span></div>
+  `;
+}
+
+let currentRasterOverlayId = null;
+
+// 選択されたラスタをMapLibreの"image"ソースとして地図に重ねる。
+// ベースマップ切り替え(setStyle)でソースが消えるため、addDataLayers()の
+// 中からも再度呼び出す。
+async function setRasterOverlay(rasterId) {
+  if (map.getLayer("raster-overlay-layer")) map.removeLayer("raster-overlay-layer");
+  if (map.getSource("raster-overlay")) map.removeSource("raster-overlay");
+
+  if (!rasterId) {
+    document.getElementById("raster-overlay-legend").innerHTML = "";
+    return;
+  }
+
+  const rasterMeta = rasterCatalog.find((r) => r.id === rasterId);
+  if (!rasterMeta) return;
+
+  document.getElementById("raster-overlay-legend").textContent = "読み込み中...";
+  try {
+    const { canvas, min, max, presentCategories, bbox } = await buildRasterOverlayCanvas(rasterMeta);
+    const coordinates = [
+      [bbox[0], bbox[3]],
+      [bbox[2], bbox[3]],
+      [bbox[2], bbox[1]],
+      [bbox[0], bbox[1]],
+    ];
+    map.addSource("raster-overlay", { type: "image", url: canvas.toDataURL(), coordinates });
+    map.addLayer({
+      id: "raster-overlay-layer",
+      type: "raster",
+      source: "raster-overlay",
+      paint: { "raster-opacity": Number(document.getElementById("raster-overlay-opacity").value) },
+    });
+    renderRasterOverlayLegend(rasterMeta, min, max, presentCategories);
+  } catch (err) {
+    document.getElementById("raster-overlay-legend").textContent = `読み込みエラー: ${err.message}`;
+  }
+}
+
+document.getElementById("raster-overlay-select").addEventListener("change", (e) => {
+  currentRasterOverlayId = e.target.value || null;
+  setRasterOverlay(currentRasterOverlayId);
+});
+
+document.getElementById("raster-overlay-opacity").addEventListener("input", (e) => {
+  document.getElementById("raster-overlay-opacity-value").textContent = e.target.value;
+  if (map.getLayer("raster-overlay-layer")) {
+    map.setPaintProperty("raster-overlay-layer", "raster-opacity", Number(e.target.value));
+  }
+});
+
+// 指定ポリゴン内の1ラスタの統計値を計算する。categorical:trueのラスタは
+// 区分ごとの集計セル数(histogram)を、それ以外は平均・最小・最大・集計セル数を返す。
 async function computeRasterBufferStats(rasterMeta, bufferPolygon, bufferBbox) {
   const image = await loadGeoTiffImage(rasterMeta);
 
@@ -128,6 +360,27 @@ async function computeRasterBufferStats(rasterMeta, bufferPolygon, bufferBbox) {
   const band = data[0];
   const winWidth = x1 - x0;
 
+  if (rasterMeta.categorical) {
+    const histogram = {};
+    let count = 0;
+    for (let row = 0; row < y1 - y0; row++) {
+      for (let col = 0; col < winWidth; col++) {
+        const value = band[row * winWidth + col];
+        if (nodata !== null && value === nodata) continue;
+
+        const lonC = imgBbox[0] + (x0 + col + 0.5) * pixelWidth;
+        const latC = imgBbox[3] - (y0 + row + 0.5) * pixelHeight;
+        if (!turf.booleanPointInPolygon([lonC, latC], bufferPolygon)) continue;
+
+        const code = Math.round(value);
+        histogram[code] = (histogram[code] || 0) + 1;
+        count += 1;
+      }
+    }
+    if (count === 0) return { ...rasterMeta, count: 0 };
+    return { ...rasterMeta, categorical: true, histogram, count };
+  }
+
   let sum = 0, count = 0, min = Infinity, max = -Infinity;
   for (let row = 0; row < y1 - y0; row++) {
     for (let col = 0; col < winWidth; col++) {
@@ -149,13 +402,14 @@ async function computeRasterBufferStats(rasterMeta, bufferPolygon, bufferBbox) {
   }
 
   if (count === 0) return { ...rasterMeta, count: 0 };
-  return { ...rasterMeta, count, mean: sum / count, min, max };
+  return { ...rasterMeta, count, sum, mean: sum / count, min, max };
 }
 
-async function calcBufferStatsForAllRasters(lng, lat, radiusMeters) {
-  const point = turf.point([lng, lat]);
-  const bufferPolygon = turf.buffer(point, radiusMeters / 1000, { units: "kilometers" });
-  const bufferBbox = turf.bbox(bufferPolygon);
+// 任意のポリゴン(バッファ円・手描きポリゴンいずれも可)に対して
+// 全ラスタの統計値を計算し、結果テーブルを描画する。
+async function calcStatsForAllRastersInPolygon(polygon) {
+  showAnalysisArea(polygon);
+  const bbox = turf.bbox(polygon);
 
   const resultsEl = document.getElementById("raster-results");
   if (rasterCatalog.length === 0) {
@@ -165,16 +419,22 @@ async function calcBufferStatsForAllRasters(lng, lat, radiusMeters) {
   resultsEl.textContent = "計算中...";
 
   const results = await Promise.all(
-    rasterCatalog.map((r) => computeRasterBufferStats(r, bufferPolygon, bufferBbox).catch((err) => ({ ...r, error: err.message })))
+    rasterCatalog.map((r) => computeRasterBufferStats(r, polygon, bbox).catch((err) => ({ ...r, error: err.message })))
   );
 
-  let html = "<table><tr><th>ラスタ（単位）</th><th>平均</th><th>最小</th><th>最大</th><th>集計セル数</th></tr>";
+  let html = "<table><tr><th>ラスタ（単位）</th><th>平均/割合・区分</th><th>最小</th><th>最大</th><th>集計セル数</th></tr>";
   results.forEach((r) => {
     const label = r.unit ? `${r.name}<br><span style="color:#888;font-weight:normal;">(${r.unit})</span>` : r.name;
     if (r.error) {
       html += `<tr><td>${label}</td><td colspan="4">エラー: ${r.error}</td></tr>`;
     } else if (r.outOfExtent || r.count === 0) {
-      html += `<tr><td>${label}</td><td colspan="4">バッファ範囲がデータ範囲外です</td></tr>`;
+      html += `<tr><td>${label}</td><td colspan="4">指定範囲がデータ範囲外です</td></tr>`;
+    } else if (r.categorical) {
+      const breakdown = Object.entries(r.histogram)
+        .sort((a, b) => b[1] - a[1])
+        .map(([code, cnt]) => `${categoricalRasterLabel(r.id, code)}: ${cnt}件 (${((cnt / r.count) * 100).toFixed(0)}%)`)
+        .join("<br>");
+      html += `<tr><td>${label}</td><td colspan="3">${breakdown}</td><td>${r.count}</td></tr>`;
     } else {
       html += `<tr><td>${label}</td><td>${r.mean.toFixed(2)}</td><td>${r.min.toFixed(2)}</td><td>${r.max.toFixed(2)}</td><td>${r.count}</td></tr>`;
     }
@@ -183,9 +443,14 @@ async function calcBufferStatsForAllRasters(lng, lat, radiusMeters) {
   resultsEl.innerHTML = html;
 }
 
+function calcBufferStatsForAllRasters(lng, lat, radiusMeters) {
+  const point = turf.point([lng, lat]);
+  const bufferPolygon = turf.buffer(point, radiusMeters / 1000, { units: "kilometers" });
+  return calcStatsForAllRastersInPolygon(bufferPolygon);
+}
+
 // ベースマップの定義。新しいタイル(旧版地形図など)を追加したいときは、
 // この配列に1エントリ追加するだけでセレクタに反映される。
-// tiles を null にしておくと「未設定」として選択肢には出るが無効化される。
 const BASE_LAYERS = [
   {
     id: "gsi_pale",
@@ -206,11 +471,7 @@ const BASE_LAYERS = [
   {
     id: "old_topo",
     name: "旧版地形図",
-    // ここにタイルのURLテンプレートを設定すると選択できるようになる。
-    // 例: tiles: ["https://ktgis.net/kjmapw/kjtilemap/データセットフォルダ/時期フォルダ/{z}/{x}/{y}.png"],
-    // 注意: "{-y}"はLeaflet独自の記法でMapLibreのスタイル仕様には存在しないトークン。
-    // MapLibreでTMS方式(Y軸反転)のタイルを使うときは、{y}はそのままにして
-    // scheme: "tms" を指定する。
+    // 関東地方(kanto)の今昔マップ。印旛沼流域が対象のため同じデータセットを使用。
     tiles: ["https://ktgis.net/kjmapw/kjtilemap/kanto/00/{z}/{x}/{y}.png"],
     scheme: "tms",
     tileSize: 256,
@@ -270,13 +531,130 @@ map.on("error", (e) => {
 
 let dataLayerListenersAttached = false;
 
-// メッシュの色分け対象スコアの定義(ポップアップで表示している項目から選べるようにする)。
-// domain/colorsは実データの分布を見て設定したもの。
-// domainは実データの分布(p99付近)に合わせて設定。gi_conservation_score/
-// gi_pressure_scoreは中央値が0付近・裾が長い分布のため、domainを[0,1,2]や
-// [0,0.65,1.3]のような単純な範囲にすると大半のメッシュがほぼ同色(無色)に
-// なってしまっていた。実データの99パーセンタイル付近を上限にして
-// 色の差が見えるようにしている。
+// ポリゴン描画モード(範囲を自分で描いてラスタを分析する機能)の状態。
+let drawModeActive = false;
+let drawPoints = [];
+
+function drawPreviewGeoJSON() {
+  const features = drawPoints.map((pt) => ({
+    type: "Feature",
+    geometry: { type: "Point", coordinates: pt },
+    properties: {},
+  }));
+  if (drawPoints.length >= 2) {
+    const lineCoords = drawPoints.length >= 3 ? [...drawPoints, drawPoints[0]] : drawPoints;
+    features.push({ type: "Feature", geometry: { type: "LineString", coordinates: lineCoords }, properties: {} });
+  }
+  if (drawPoints.length >= 3) {
+    features.push({
+      type: "Feature",
+      geometry: { type: "Polygon", coordinates: [[...drawPoints, drawPoints[0]]] },
+      properties: {},
+    });
+  }
+  return { type: "FeatureCollection", features };
+}
+
+// setStyle()でスタイルを切り替えるとソース/レイヤーが全て消えるため、
+// addDataLayers()の中から毎回呼び、まだ無ければ作る。
+function addDrawPreviewLayer() {
+  if (map.getSource("draw-preview")) return;
+  map.addSource("draw-preview", { type: "geojson", data: drawPreviewGeoJSON() });
+  map.addLayer({
+    id: "draw-preview-fill",
+    type: "fill",
+    source: "draw-preview",
+    filter: ["==", ["geometry-type"], "Polygon"],
+    paint: { "fill-color": "#ff7f00", "fill-opacity": 0.2 },
+  });
+  map.addLayer({
+    id: "draw-preview-line",
+    type: "line",
+    source: "draw-preview",
+    filter: ["==", ["geometry-type"], "LineString"],
+    paint: { "line-color": "#ff7f00", "line-width": 2, "line-dasharray": [2, 1] },
+  });
+  map.addLayer({
+    id: "draw-preview-points",
+    type: "circle",
+    source: "draw-preview",
+    filter: ["==", ["geometry-type"], "Point"],
+    paint: { "circle-radius": 4, "circle-color": "#ff7f00" },
+  });
+}
+
+function updateDrawPreview() {
+  const src = map.getSource("draw-preview");
+  if (src) src.setData(drawPreviewGeoJSON());
+}
+
+function clearDrawPoints() {
+  drawPoints = [];
+  updateDrawPreview();
+}
+
+// 実際に集計対象になった範囲(バッファ円 or 確定したポリゴン)を
+// 地図上に表示しておくためのレイヤー。draw-previewとは別に持ち、
+// 「計算中の下書き」と「確定して計算に使った範囲」を区別する。
+function addAnalysisAreaLayer() {
+  if (map.getSource("analysis-area")) return;
+  map.addSource("analysis-area", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  map.addLayer({
+    id: "analysis-area-fill",
+    type: "fill",
+    source: "analysis-area",
+    paint: { "fill-color": "#1e88e5", "fill-opacity": 0.15 },
+  });
+  map.addLayer({
+    id: "analysis-area-line",
+    type: "line",
+    source: "analysis-area",
+    paint: { "line-color": "#1e88e5", "line-width": 2 },
+  });
+}
+
+function showAnalysisArea(polygon) {
+  const src = map.getSource("analysis-area");
+  if (src) src.setData({ type: "FeatureCollection", features: [polygon] });
+}
+
+function clearAnalysisArea() {
+  const src = map.getSource("analysis-area");
+  if (src) src.setData({ type: "FeatureCollection", features: [] });
+  clearDrawPoints();
+  document.getElementById("raster-results").innerHTML = "";
+}
+
+document.querySelectorAll('input[name="analysis-mode"]').forEach((radio) => {
+  radio.addEventListener("change", () => {
+    drawModeActive = document.getElementById("mode-draw").checked;
+    document.getElementById("draw-controls").style.display = drawModeActive ? "block" : "none";
+    clearDrawPoints();
+  });
+});
+
+document.getElementById("draw-undo").addEventListener("click", () => {
+  drawPoints.pop();
+  updateDrawPreview();
+});
+
+document.getElementById("draw-clear").addEventListener("click", clearDrawPoints);
+
+document.getElementById("draw-finish").addEventListener("click", () => {
+  if (drawPoints.length < 3) {
+    alert("ポリゴンには3点以上の頂点が必要です。");
+    return;
+  }
+  const ring = [...drawPoints, drawPoints[0]];
+  calcStatsForAllRastersInPolygon(turf.polygon([ring]));
+  // 確定後はanalysis-areaレイヤーが同じ範囲を表示するので、下書きの
+  // 頂点/線は消しておく(二重に表示されるのを防ぐ)。
+  clearDrawPoints();
+});
+
+document.getElementById("analysis-area-clear").addEventListener("click", clearAnalysisArea);
+
+// メッシュの色分け対象スコアの定義(500mメッシュGI統合データの属性名と一致)。
 const MESH_SCORES = {
   priority_rank: {
     label: "優先度ランク",
@@ -315,9 +693,32 @@ const MESH_SCORES = {
   },
 };
 
-// 既定は優先度ランク(1-5の離散値で色の差が分かりやすい)。GI保全/開発圧
-// スコアは符号や解釈に未確認点があるため既定表示にはしない。
 let currentMeshScore = "priority_rank";
+
+// 雨水浸透機能レイヤーのカテゴリ("result"列の値)ごとの色・凡例ラベル。
+// 適地/最適地を緑系、不適地を赤系、対象外・判定不能・除外はグレー系にしている。
+const INFILTRATION_CATEGORIES = [
+  { value: "01最適地", label: "最適地", color: "#1a9850" },
+  { value: "02適地", label: "適地", color: "#91cf60" },
+  { value: "03不適地", label: "不適地", color: "#d73027" },
+  { value: "05判定不能（地形分類データなし）", label: "判定不能（地形分類データなし）", color: "#bdbdbd" },
+  { value: "06判定対象外（山地等）", label: "判定対象外（山地等）", color: "#969696" },
+  { value: "07除外区域", label: "除外区域", color: "#525252" },
+];
+
+function infiltrationFillColorExpression() {
+  const expr = ["match", ["get", "result"]];
+  INFILTRATION_CATEGORIES.forEach((c) => expr.push(c.value, c.color));
+  expr.push("#cccccc"); // 未知の値のフォールバック
+  return expr;
+}
+
+function renderInfiltrationLegend() {
+  const el = document.getElementById("infiltration-legend");
+  el.innerHTML = INFILTRATION_CATEGORIES.map(
+    (c) => `<div class="swatch-row"><span class="swatch" style="background:${c.color}"></span>${c.label}</div>`
+  ).join("");
+}
 
 function meshFillColorExpression(scoreId) {
   const cfg = MESH_SCORES[scoreId];
@@ -345,6 +746,75 @@ function setMeshScore(scoreId) {
   updateMeshLegend(scoreId);
 }
 
+// ①・②(メッシュ/境界/雨水浸透)で特別扱いするベクタID。これ以外の
+// vectors_catalog.jsonのエントリは、汎用レイヤーとして④に自動追加される。
+const SPECIAL_VECTOR_IDS = new Set(["chiba_boundary_approx", "chiba_mesh500m_gi", "chiba_mesh500m_gi_v2", "chiba_infiltration_potential"]);
+const EXTRA_VECTOR_PALETTE = ["#1f78b4", "#33a02c", "#e31a1c", "#ff7f00", "#6a3d9a", "#b15928", "#a6cee3", "#b2df8a"];
+const extraVectorControlsBuilt = new Set();
+
+// mesh/boundary/infiltration以外のベクタ(ESV系データなど)を、専用コードを
+// 書かずに汎用的な表示切替・透過度調整・プロパティポップアップ付きで
+// 追加する。新しいベクタをVECTOR_DEFSに追加するだけで、ここに自動で現れる。
+function addExtraVectorLayer(vectorMeta, index) {
+  const sourceId = `extra-src-${vectorMeta.id}`;
+  const fillId = `extra-fill-${vectorMeta.id}`;
+  const lineId = `extra-line-${vectorMeta.id}`;
+  const color = EXTRA_VECTOR_PALETTE[index % EXTRA_VECTOR_PALETTE.length];
+
+  if (!extraVectorControlsBuilt.has(vectorMeta.id)) {
+    const container = document.getElementById("extra-vectors-panel");
+    const row = document.createElement("div");
+    row.innerHTML = `
+      <label>
+        <input type="checkbox" id="toggle-${vectorMeta.id}" />
+        ${vectorMeta.name}
+      </label>
+      <label style="margin-left: 18px;">
+        透過度: <span id="${vectorMeta.id}-opacity-value">0.5</span>
+        <input type="range" id="${vectorMeta.id}-opacity" min="0" max="1" step="0.05" value="0.5" />
+      </label>
+    `;
+    container.appendChild(row);
+    extraVectorControlsBuilt.add(vectorMeta.id);
+
+    document.getElementById(`toggle-${vectorMeta.id}`).addEventListener("change", (e) => {
+      const visibility = e.target.checked ? "visible" : "none";
+      if (map.getLayer(fillId)) map.setLayoutProperty(fillId, "visibility", visibility);
+      if (map.getLayer(lineId)) map.setLayoutProperty(lineId, "visibility", visibility);
+    });
+    document.getElementById(`${vectorMeta.id}-opacity`).addEventListener("input", (e) => {
+      document.getElementById(`${vectorMeta.id}-opacity-value`).textContent = e.target.value;
+      if (map.getLayer(fillId)) map.setPaintProperty(fillId, "fill-opacity", Number(e.target.value));
+    });
+
+    map.on("click", fillId, (e) => {
+      if (drawModeActive) return;
+      const p = e.features[0].properties;
+      const rows = Object.entries(p).slice(0, 12).map(([k, v]) => `${k}: ${v}`).join("<br>");
+      new maplibregl.Popup().setLngLat(e.lngLat).setHTML(`<strong>${vectorMeta.name}</strong><br>${rows}`).addTo(map);
+    });
+  }
+
+  if (map.getSource(sourceId)) return; // 現在のスタイルに既に追加済み
+
+  const visible = document.getElementById(`toggle-${vectorMeta.id}`).checked;
+  map.addSource(sourceId, { type: "geojson", data: `data/${vectorMeta.path}` });
+  map.addLayer({
+    id: fillId,
+    type: "fill",
+    source: sourceId,
+    layout: { visibility: visible ? "visible" : "none" },
+    paint: { "fill-color": color, "fill-opacity": Number(document.getElementById(`${vectorMeta.id}-opacity`).value) },
+  });
+  map.addLayer({
+    id: lineId,
+    type: "line",
+    source: sourceId,
+    layout: { visibility: visible ? "visible" : "none" },
+    paint: { "line-color": color, "line-width": 1 },
+  });
+}
+
 async function addDataLayers() {
   try {
     const vectorsCatalog = await fetch("data/vectors_catalog.json").then((r) => r.json());
@@ -359,7 +829,7 @@ async function addDataLayers() {
         source: "chiba-mesh",
         paint: {
           "fill-color": meshFillColorExpression(currentMeshScore),
-          "fill-opacity": 0.6,
+          "fill-opacity": Number(document.getElementById("mesh-opacity").value),
         },
       });
       map.addLayer({
@@ -372,6 +842,7 @@ async function addDataLayers() {
 
       if (!dataLayerListenersAttached) {
         map.on("click", "chiba-mesh-fill", (e) => {
+          if (drawModeActive) return;
           const p = e.features[0].properties;
           new maplibregl.Popup()
             .setLngLat(e.lngLat)
@@ -400,6 +871,14 @@ async function addDataLayers() {
           meshScoreSelect.appendChild(option);
         });
         meshScoreSelect.addEventListener("change", (e) => setMeshScore(e.target.value));
+
+        const meshOpacityInput = document.getElementById("mesh-opacity");
+        meshOpacityInput.addEventListener("input", (e) => {
+          document.getElementById("mesh-opacity-value").textContent = e.target.value;
+          if (map.getLayer("chiba-mesh-fill")) {
+            map.setPaintProperty("chiba-mesh-fill", "fill-opacity", Number(e.target.value));
+          }
+        });
       }
     }
 
@@ -413,8 +892,67 @@ async function addDataLayers() {
         paint: { "line-color": "#2166ac", "line-width": 1.5 },
       });
     }
+
+    const infiltration = vectors.find((v) => v.id === "chiba_infiltration_potential");
+    if (infiltration) {
+      const infiltrationVisible = document.getElementById("toggle-infiltration").checked;
+      map.addSource("chiba-infiltration", { type: "geojson", data: `data/${infiltration.path}` });
+      map.addLayer({
+        id: "chiba-infiltration-fill",
+        type: "fill",
+        source: "chiba-infiltration",
+        layout: { visibility: infiltrationVisible ? "visible" : "none" },
+        paint: {
+          "fill-color": infiltrationFillColorExpression(),
+          "fill-opacity": Number(document.getElementById("infiltration-opacity").value),
+        },
+      });
+      map.addLayer({
+        id: "chiba-infiltration-outline",
+        type: "line",
+        source: "chiba-infiltration",
+        layout: { visibility: infiltrationVisible ? "visible" : "none" },
+        paint: { "line-color": "#666", "line-width": 0.2 },
+      });
+      renderInfiltrationLegend();
+
+      if (!dataLayerListenersAttached) {
+        map.on("click", "chiba-infiltration-fill", (e) => {
+          if (drawModeActive) return;
+          const p = e.features[0].properties;
+          const cat = INFILTRATION_CATEGORIES.find((c) => c.value === p.result);
+          new maplibregl.Popup()
+            .setLngLat(e.lngLat)
+            .setHTML(`<strong>雨水浸透機能</strong><br>${cat ? cat.label : p.result}`)
+            .addTo(map);
+        });
+
+        document.getElementById("toggle-infiltration").addEventListener("change", (e) => {
+          const visibility = e.target.checked ? "visible" : "none";
+          map.setLayoutProperty("chiba-infiltration-fill", "visibility", visibility);
+          map.setLayoutProperty("chiba-infiltration-outline", "visibility", visibility);
+        });
+
+        const infiltrationOpacityInput = document.getElementById("infiltration-opacity");
+        infiltrationOpacityInput.addEventListener("input", (e) => {
+          document.getElementById("infiltration-opacity-value").textContent = e.target.value;
+          if (map.getLayer("chiba-infiltration-fill")) {
+            map.setPaintProperty("chiba-infiltration-fill", "fill-opacity", Number(e.target.value));
+          }
+        });
+      }
+    }
+
+    vectors.filter((v) => !SPECIAL_VECTOR_IDS.has(v.id)).forEach((v, i) => addExtraVectorLayer(v, i));
+
+    addDrawPreviewLayer();
+    addAnalysisAreaLayer();
   } catch (err) {
     console.warn("ベクタカタログ(data/vectors_catalog.json)の読み込みに失敗しました。", err);
+  }
+
+  if (currentRasterOverlayId) {
+    setRasterOverlay(currentRasterOverlayId);
   }
 
   dataLayerListenersAttached = true;
@@ -423,6 +961,11 @@ async function addDataLayers() {
 map.on("load", () => addDataLayers());
 
 map.on("click", (e) => {
+  if (drawModeActive) {
+    drawPoints.push([e.lngLat.lng, e.lngLat.lat]);
+    updateDrawPreview();
+    return;
+  }
   const { lng, lat } = e.lngLat;
   const radiusMeters = Number(document.getElementById("radius").value) || 300;
   calcBufferStatsForAllRasters(lng, lat, radiusMeters);
