@@ -205,12 +205,16 @@ VECTOR_DEFS = [
         "src": "ESV_人口_500mメッシュ_千葉県.gpkg",
         "name": "人口（500mメッシュ）（千葉県）",
         "description": "500mメッシュ単位の人口データ(国勢調査メッシュ統計ベース)。",
+        # frontendでこの属性値に応じて塗り分ける(色分けの濃淡)。未指定の
+        # ベクタは単色塗りになる。
+        "color_field": "pop",
     },
     {
         "id": "chiba_esv_rl_score",
         "src": "ESV15_RLスコア_1km_千葉県.gpkg",
         "name": "レッドリスト(RL)スコア 1kmメッシュ（千葉県）",
         "description": "1kmメッシュ単位の、レッドリスト掲載種の記録数・種数等に基づく指標(score_species_weighted等)。",
+        "color_field": "score_species_weighted",
     },
     # --- 以下は元ファイルが10MBを超えるため、Google Driveからの自動取得が
     # できず、data/raw/chiba/vector/ に手動で配置してから有効になる
@@ -383,15 +387,16 @@ def process_vectors() -> list[dict]:
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         gdf.to_file(dst_path, driver="GeoJSON")
 
-        catalog.append(
-            {
-                "id": definition["id"],
-                "name": definition["name"],
-                "description": definition["description"],
-                "path": f"vectors/{definition['id']}.geojson",
-                "feature_count": int(len(gdf)),
-            }
-        )
+        entry = {
+            "id": definition["id"],
+            "name": definition["name"],
+            "description": definition["description"],
+            "path": f"vectors/{definition['id']}.geojson",
+            "feature_count": int(len(gdf)),
+        }
+        if definition.get("color_field"):
+            entry["color_field"] = definition["color_field"]
+        catalog.append(entry)
         print(f"完了: {dst_path} ({len(gdf)}件)")
     return catalog
 
