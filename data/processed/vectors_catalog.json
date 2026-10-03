@@ -15,14 +15,6 @@
       "feature_count": 1
     },
     {
-      "id": "chiba_esv_population_mesh",
-      "name": "人口（500mメッシュ）（千葉県）",
-      "description": "500mメッシュ単位の人口データ(国勢調査メッシュ統計ベース)。",
-      "path": "vectors/chiba_esv_population_mesh.geojson",
-      "feature_count": 15074,
-      "color_field": "pop"
-    },
-    {
       "id": "chiba_esv_rl_score",
       "name": "レッドリスト(RL)スコア 1kmメッシュ（千葉県）",
       "description": "1kmメッシュ単位の、レッドリスト掲載種の記録数・種数等に基づく指標(score_species_weighted等)。",

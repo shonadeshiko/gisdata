@@ -206,15 +206,9 @@ VECTOR_DEFS = [
         "description": "500mメッシュ単位のグリーンインフラ(GI)関連スコア・開発圧・土地被覆割合等の統合データ。"
         "雨水浸透機能を組み込んで優先度を再計算したv2版(主要な属性名は旧版と同じ)。",
     },
-    {
-        "id": "chiba_esv_population_mesh",
-        "src": "ESV_人口_500mメッシュ_千葉県.gpkg",
-        "name": "人口（500mメッシュ）（千葉県）",
-        "description": "500mメッシュ単位の人口データ(国勢調査メッシュ統計ベース)。",
-        # frontendでこの属性値に応じて塗り分ける(色分けの濃淡)。未指定の
-        # ベクタは単色塗りになる。
-        "color_field": "pop",
-    },
+    # 人口(500mメッシュ)のベクタは、250mラスタ(chiba_esv_population)と
+    # 内容が重複するため取り込み対象から外している
+    # (元ファイルはdata/raw/chiba/vector/に残したままでよい)。
     {
         "id": "chiba_esv_rl_score",
         "src": "ESV15_RLスコア_1km_千葉県.gpkg",
@@ -416,7 +410,16 @@ def process_vectors() -> list[dict]:
     return catalog
 
 
-def merge_catalog(existing_path: Path, new_entries: list[dict], key: str) -> None:
+def merge_catalog(existing_path: Path, new_entries: list[dict], key: str, valid_ids: set[str]) -> None:
+    """
+    既存カタログをnew_entriesでid単位にマージする(追加/更新)。
+    さらに、valid_ids(現在のRASTER_DEFS/VECTOR_DEFSのid集合)に無い
+    "chiba_"始まりのエントリはカタログから取り除き、対応する生成物
+    ファイルも削除する(RASTER_DEFS/VECTOR_DEFSからデータを削除した場合に、
+    古いカタログエントリ・ファイルが残り続けないようにするため)。
+    "chiba_"で始まらないエントリ(例: ingest_gsi_elevation.pyが生成する
+    gsi_elevation)は、このスクリプトの管理対象外なので触らない。
+    """
     if existing_path.exists():
         existing = json.loads(existing_path.read_text(encoding="utf-8"))
     else:
@@ -429,6 +432,18 @@ def merge_catalog(existing_path: Path, new_entries: list[dict], key: str) -> Non
         else:
             existing[key] = [entry if item["id"] == entry["id"] else item for item in existing[key]]
 
+    kept, removed = [], []
+    for item in existing.get(key, []):
+        is_ours = item["id"].startswith("chiba_")
+        (removed if (is_ours and item["id"] not in valid_ids) else kept).append(item)
+    existing[key] = kept
+
+    for item in removed:
+        print(f"カタログから削除(定義が無いため): {item['id']}")
+        stale_file = PROCESSED_DIR / item["path"]
+        if stale_file.exists():
+            stale_file.unlink()
+
     existing_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -436,8 +451,11 @@ def main() -> None:
     raster_entries = process_rasters()
     vector_entries = process_vectors()
 
-    merge_catalog(PROCESSED_DIR / "catalog.json", raster_entries, "rasters")
-    merge_catalog(PROCESSED_DIR / "vectors_catalog.json", vector_entries, "vectors")
+    raster_ids = {d["id"] for d in RASTER_DEFS}
+    vector_ids = {d["id"] for d in VECTOR_DEFS}
+
+    merge_catalog(PROCESSED_DIR / "catalog.json", raster_entries, "rasters", raster_ids)
+    merge_catalog(PROCESSED_DIR / "vectors_catalog.json", vector_entries, "vectors", vector_ids)
 
     print("\nカタログ更新完了")
 

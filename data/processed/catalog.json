@@ -15,13 +15,6 @@
       "path": "rasters/chiba_hand_rank.tif"
     },
     {
-      "id": "gsi_elevation",
-      "name": "標高（国土地理院 標高タイル DEM10B）",
-      "unit": "m",
-      "description": "国土地理院の標高タイル(DEM10B, 10mメッシュ)から取得した印旛沼流域周辺の標高データ。",
-      "path": "rasters/gsi_elevation.tif"
-    },
-    {
       "id": "chiba_twi_rank",
       "name": "TWIランク（千葉県）",
       "unit": "ランク(1-5)",
