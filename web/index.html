@@ -748,7 +748,7 @@ function setMeshScore(scoreId) {
 
 // ①・②(メッシュ/境界/雨水浸透)で特別扱いするベクタID。これ以外の
 // vectors_catalog.jsonのエントリは、汎用レイヤーとして④に自動追加される。
-const SPECIAL_VECTOR_IDS = new Set(["chiba_boundary_approx", "chiba_mesh500m_gi", "chiba_mesh500m_gi_v2", "chiba_infiltration_potential"]);
+const SPECIAL_VECTOR_IDS = new Set(["chiba_boundary_approx", "chiba_mesh500m_gi", "chiba_infiltration_potential"]);
 const EXTRA_VECTOR_PALETTE = ["#1f78b4", "#33a02c", "#e31a1c", "#ff7f00", "#6a3d9a", "#b15928", "#a6cee3", "#b2df8a"];
 const extraVectorControlsBuilt = new Set();
 
@@ -895,7 +895,9 @@ async function addDataLayers() {
                GI保全スコア: ${Number(p.gi_conservation_score).toFixed(2)}<br>
                GI開発圧スコア: ${Number(p.gi_pressure_score).toFixed(2)}<br>
                優先度ランク: ${p.priority_rank}<br>
-               市街地率: ${Number(p.urban_frac).toFixed(2)} / 森林率: ${Number(p.forest_frac).toFixed(2)}`
+               市街地率: ${Number(p.urban_frac).toFixed(2)} / 森林率: ${Number(p.forest_frac).toFixed(2)}<br>
+               浸透適地率: ${p.infiltration_good_pct != null ? Number(p.infiltration_good_pct).toFixed(0) + "%" : "-"} /
+               分類: ${p.dual_axis_group || "-"}`
             )
             .addTo(map);
         });

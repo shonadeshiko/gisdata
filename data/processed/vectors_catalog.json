@@ -3,7 +3,7 @@
     {
       "id": "chiba_mesh500m_gi",
       "name": "500mメッシュ GI統合スコア（千葉県）",
-      "description": "500mメッシュ単位のグリーンインフラ(GI)関連スコア・開発圧・土地被覆割合等の統合データ。",
+      "description": "500mメッシュ単位のグリーンインフラ(GI)関連スコア・開発圧・土地被覆割合等の統合データ。雨水浸透機能を組み込んで優先度を再計算したv2版(主要な属性名は旧版と同じ)。",
       "path": "vectors/chiba_mesh500m_gi.geojson",
       "feature_count": 18448
     },
@@ -29,6 +29,29 @@
       "path": "vectors/chiba_esv_rl_score.geojson",
       "feature_count": 1273,
       "color_field": "score_species_weighted"
+    },
+    {
+      "id": "chiba_infiltration_potential",
+      "name": "雨水浸透機能（千葉県）",
+      "description": "地形・地質等から期待される雨水浸透機能の適地区分('result'列: 01最適地/02適地/03不適地/05判定不能/06判定対象外/07除外区域)。",
+      "path": "vectors/chiba_infiltration_potential.geojson",
+      "feature_count": 2031
+    },
+    {
+      "id": "chiba_esv_beneficiary_watershed_b",
+      "name": "ESV受益者（型B流域）（千葉県）",
+      "description": "生態系サービスの受益者(型B流域)の範囲ポリゴン。下流で恩恵を受ける人口(pop_down)等を含む。",
+      "path": "vectors/chiba_esv_beneficiary_watershed_b.geojson",
+      "feature_count": 626,
+      "color_field": "pop_down"
+    },
+    {
+      "id": "chiba_esv_sdr_diff_watershed",
+      "name": "SDR差分 2020-2024（流域別）（千葉県）",
+      "description": "2020年から2024年にかけての土砂輸出量(SDR)の変化を流域単位で集計したデータ。",
+      "path": "vectors/chiba_esv_sdr_diff_watershed.geojson",
+      "feature_count": 626,
+      "color_field": "sed_export_pct_raw"
     }
   ]
 }

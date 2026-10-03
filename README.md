@@ -142,6 +142,13 @@ nodataを除いた実際のmin/maxに合わせてカラーランプ(青→緑→
 すべて汎用レイヤーとして扱われる）。新しいベクタを追加するときに
 `web/index.html`側の編集が基本的に不要になる仕組み。
 
+`VECTOR_DEFS`に`"color_field": "属性名"`を指定すると、単色塗りではなく
+その属性の実際の値のmin/maxに応じた濃淡のグラデーション塗り分け＋凡例
+（メッシュと同様のbar+min/maxラベル）になる（`chiba_esv_population_mesh`の
+`pop`、`chiba_esv_rl_score`の`score_species_weighted`等で使用）。
+frontendがGeoJSONを一度fetchしてmin/maxを計算するため、属性名の指定だけで
+動く（domain設定が不要）。未指定のベクタは従来通り単色塗りのまま。
+
 ## 千葉県 実データについて
 
 `pipeline/process/ingest_chiba_data.py` は、千葉県の実データ（GI関連
@@ -171,27 +178,22 @@ COG化・GeoJSON化を行う。
 **それを超えるファイルは自動取得できないため、人が直接 `git push` で
 取り込む必要がある。**
 
-2026-10-03時点で、以下のファイルは自動取得できず、`data/raw/chiba/`に
-未配置のまま（`RASTER_DEFS`/`VECTOR_DEFS`には定義済みなので、ファイルを
-置いて`python pipeline/process/ingest_chiba_data.py`を再実行すれば
-有効になる）：
+また、GitHubのWeb UI（ブラウザでのドラッグ&ドロップアップロード）経由で
+人が取り込む場合も、**1ファイルあたり25MBの上限**がある点に注意
+（WSL環境から`git push`する場合はこの制限を受けない。手順書「Windows環境
+での作業（WSL）について」参照）。
 
-**ラスタ（`data/raw/chiba/raster/`に配置）**
-- `04_自然的景観の多様度_12_千葉県.tif`（約11.5MB）
-- `JAXA_HRLC土地被覆_2020_千葉県.tif` / `_2024_千葉県.tif`（約11.6〜11.7MB、categorical）
-- `ESV_土地被覆変化_2020-2024_千葉県.tif`（約14.4MB）
+2026-10-03時点で、`chiba_landscape_diversity`・`chiba_esv_landcover_change`・
+`chiba_infiltration_potential`・`chiba_esv_beneficiary_watershed_b`・
+`chiba_esv_sdr_diff_watershed`・メッシュv2（`chiba_mesh500m_gi`の新版）は
+Web UI経由（25MB未満）で取り込み済み。以下はサイズの都合で**まだ未取得**
+（`RASTER_DEFS`には定義済みなので、ファイルを置いて
+`python pipeline/process/ingest_chiba_data.py`を再実行すれば有効になる）：
+
+**ラスタ（`data/raw/chiba/raster/`に配置、25MB超のためWSL経由のpushが必要）**
+- `JAXA_HRLC土地被覆_2020_千葉県.tif` / `_2024_千葉県.tif`（約11.6〜11.7MB、categorical）※25MB未満だが未取り込み
 - `ESV19_冷却能力CC_千葉県.tif`（約47.6MB、COG化後も重いので読み込みがやや遅い）
 - `ESV06_土砂輸出量_SDR_千葉県.tif`（約53.2MB、同上）
-
-**ベクタ（`data/raw/chiba/vector/`に配置）**
-- `03_地形・地質等から期待される雨水浸透機能_12_千葉県.shp`
-  （同名の`.dbf`/`.shx`/`.prj`も一緒に配置すること）
-- `ESV_受益者_型B流域_千葉県.gpkg`（約8.8MB）
-- `ESV06_SDR差分_2020-2024_流域別_千葉県.gpkg`（約8.8MB）
-- `メッシュ500m_GI統合v2浸透込み優先度_千葉県.gpkg`（約10MB、浸透機能を
-  組み込んで優先度を再計算したメッシュの新版。取り込み後、属性名が旧版
-  `chiba_mesh500m_gi`と同じか確認し、異なる場合は`web/index.html`の
-  `MESH_SCORES`・クリックポップアップを対応させること）
 
 **意図的に取り込みを見送っているファイル**
 - `ESV12_生息地質指数_4脅威_千葉県.tif`（約570MB）：本サイトは
@@ -207,9 +209,18 @@ COG化・GeoJSON化を行う。
 - **千葉県域（近似）**：ファイル名に「EcoDRR」を含むが、Eco-DRR
   (生態系を活用した防災減災)の指定範囲などではなく、単なる県域の
   近似ポリゴン。
-- **土地被覆変化（chiba_esv_landcover_change）**：変化区分値の正式な
-  定義が未確認のため、現状は連続値用のカラーランプで仮表示している。
-  区分定義が分かったらカテゴリカル表示への切り替えを検討する。
+- **土地被覆変化（chiba_esv_landcover_change）**：変化区分値(0-4)の正式な
+  定義が未確認のため、`categorical: true`＋`CATEGORICAL_RASTER_PALETTE`
+  による汎用の色分け（「クラスN」ラベル）で仮表示している。元ファイルに
+  nodataタグが無く、値0が大部分(変化なし/背景)を占めるため、
+  `nodata_override: 0`で0を透明化している。区分定義が分かったら
+  `CATEGORICAL_RASTER_LABELS`に正式なラベルを追記する。
+- **メッシュv2（chiba_mesh500m_gi）**：浸透機能を組み込んで優先度を
+  再計算したv2版に切り替え済み。`gi_conservation_score`/`gi_pressure_score`/
+  `priority_rank`/`urban_frac`/`forest_frac`/`mesh4_code`は旧版と同じ
+  属性名のまま残っているため`MESH_SCORES`はそのまま使える。新たに
+  `infiltration_good_pct`（浸透適地率）・`dual_axis_group`（開発圧×浸透の
+  分類）などが追加され、クリックポップアップに反映済み。
 
 ```bash
 python pipeline/process/ingest_chiba_data.py
@@ -218,10 +229,12 @@ python pipeline/process/ingest_chiba_data.py
 ## 今後のTODO
 
 - [ ] 上記「Google Driveからの自動取得について」に挙げた、サイズ制限で
-      未取得のファイルをdata/raw/chiba/に配置し、パイプラインを再実行する
+      未取得のファイル(JAXA土地被覆2020/2024・冷却能力CC・SDR)を
+      data/raw/chiba/に配置し、パイプラインを再実行する(WSL経由のpush推奨)
 - [ ] JAXA土地被覆・ESV土地被覆変化の正式な区分定義を確認し、
       `CATEGORICAL_RASTER_LABELS`に反映する
-- [ ] メッシュv2(浸透込み優先度版)の属性名を確認し、必要ならMESH_SCORES等を更新する
+- [ ] ESV受益者(型B流域)・SDR差分(流域別)の`color_field`が適切か
+      （`pop_down`/`sed_export_pct_raw`）データの意味を確認する
 - [ ] Cloudflare R2 / Pages への接続とデプロイ設定
 - [ ] GitHub Actionsでパイプライン自動実行を有効化（現状は元データが
       CI環境に無いため、data/processedの既存コミットをそのまま使用）

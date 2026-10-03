@@ -161,8 +161,13 @@ RASTER_DEFS = [
         "src": "ESV_土地被覆変化_2020-2024_千葉県.tif",
         "name": "土地被覆変化 2020-2024（千葉県）",
         "unit": "変化区分",
-        "description": "2020年から2024年にかけての土地被覆の変化を示す区分値。区分の詳細な定義は別途確認が必要。",
+        "description": "2020年から2024年にかけての土地被覆の変化を示す区分値(0-4の少数区分、"
+        "大部分は0)。区分の詳細な定義は別途確認が必要。",
         "resampling": Resampling.nearest,
+        "categorical": True,
+        # 元ファイルにnodataタグが無く、値0が全体の大半(変化なし/背景)を
+        # 占めるため、0をnodata相当として透明化する。
+        "nodata_override": 0,
     },
     {
         "id": "chiba_esv_cooling_capacity",
@@ -196,9 +201,10 @@ VECTOR_DEFS = [
     },
     {
         "id": "chiba_mesh500m_gi",
-        "src": "メッシュ500m_GI統合_千葉県.gpkg",
+        "src": "メッシュ500m_GI統合v2浸透込み優先度_千葉県.gpkg",
         "name": "500mメッシュ GI統合スコア（千葉県）",
-        "description": "500mメッシュ単位のグリーンインフラ(GI)関連スコア・開発圧・土地被覆割合等の統合データ。",
+        "description": "500mメッシュ単位のグリーンインフラ(GI)関連スコア・開発圧・土地被覆割合等の統合データ。"
+        "雨水浸透機能を組み込んで優先度を再計算したv2版(主要な属性名は旧版と同じ)。",
     },
     {
         "id": "chiba_esv_population_mesh",
@@ -237,21 +243,15 @@ VECTOR_DEFS = [
         "id": "chiba_esv_beneficiary_watershed_b",
         "src": "ESV_受益者_型B流域_千葉県.gpkg",
         "name": "ESV受益者（型B流域）（千葉県）",
-        "description": "生態系サービスの受益者(型B流域)の範囲ポリゴン。",
+        "description": "生態系サービスの受益者(型B流域)の範囲ポリゴン。下流で恩恵を受ける人口(pop_down)等を含む。",
+        "color_field": "pop_down",
     },
     {
         "id": "chiba_esv_sdr_diff_watershed",
         "src": "ESV06_SDR差分_2020-2024_流域別_千葉県.gpkg",
         "name": "SDR差分 2020-2024（流域別）（千葉県）",
         "description": "2020年から2024年にかけての土砂輸出量(SDR)の変化を流域単位で集計したデータ。",
-    },
-    {
-        "id": "chiba_mesh500m_gi_v2",
-        "src": "メッシュ500m_GI統合v2浸透込み優先度_千葉県.gpkg",
-        "name": "500mメッシュ GI統合スコア v2（浸透込み優先度）（千葉県）",
-        "description": "雨水浸透機能を組み込んで優先度を再計算した500mメッシュGI統合データ(v2)。"
-        "属性名が旧版(chiba_mesh500m_gi)と異なる可能性があるため、取り込み後に"
-        "web/index.htmlのMESH_SCORES/クリックポップアップの対応を確認すること。",
+        "color_field": "sed_export_pct_raw",
     },
 ]
 
@@ -261,17 +261,23 @@ def reproject_to_cog(
     dst_cog_path: Path,
     resampling: Resampling,
     uint8_scale: float | None = None,
+    nodata_override: float | None = None,
 ) -> None:
     """
     uint8_scale を指定すると、値をscale倍してuint8(0-255)に丸めて保存する
     (例: 1.0-5.0の連続値をscale=10で保存すると10-50のuint8になり、
     frontend側でscaleで割り戻すことで小数点以下1桁の精度を保ったまま軽量化できる)。
     整数ランクなど元々小さい整数値のデータは uint8_scale=1 を指定する。
+
+    nodata_override を指定すると、元ファイルにnodataタグが無い(または
+    誤っている)場合でも、その値をnodataとして扱う(frontendで透明化される)。
     """
     with rasterio.open(src_path) as src:
         transform, width, height = calculate_default_transform(
             src.crs, DST_CRS, src.width, src.height, *src.bounds
         )
+        src_nodata = nodata_override if nodata_override is not None else src.nodata
+
         kwargs = src.meta.copy()
         kwargs.update(
             {
@@ -279,6 +285,7 @@ def reproject_to_cog(
                 "transform": transform,
                 "width": width,
                 "height": height,
+                "nodata": src_nodata,
             }
         )
         if uint8_scale is not None:
@@ -294,8 +301,10 @@ def reproject_to_cog(
                     destination=rasterio.band(dst, band),
                     src_transform=src.transform,
                     src_crs=src.crs,
+                    src_nodata=src_nodata,
                     dst_transform=transform,
                     dst_crs=DST_CRS,
+                    dst_nodata=src_nodata,
                     resampling=resampling,
                 )
 
@@ -339,7 +348,13 @@ def process_rasters() -> list[dict]:
         dst_path = RASTERS_DIR / f"{definition['id']}.tif"
         print(f"処理中: {definition['src']} -> {dst_path.name}")
         uint8_scale = definition.get("uint8_scale")
-        reproject_to_cog(src_path, dst_path, definition["resampling"], uint8_scale)
+        reproject_to_cog(
+            src_path,
+            dst_path,
+            definition["resampling"],
+            uint8_scale,
+            definition.get("nodata_override"),
+        )
 
         entry = {
             "id": definition["id"],
